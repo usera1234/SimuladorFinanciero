@@ -1,9 +1,8 @@
 ﻿namespace Simulador.Api.Domain
 
-/// <summary>
 /// Representa el estado del mundo simulado.
 /// Sabe en qué tick está y cómo avanzar.
-/// </summary>
+
 
 {
     public class Mundo
