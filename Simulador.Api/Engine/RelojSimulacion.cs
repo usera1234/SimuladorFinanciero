@@ -2,17 +2,17 @@
 
 namespace Simulador.Api.Engine;
 
-/// Convierte el tiempo real en ticks de simulación, según la velocidad.
-/// Funciona como un reloj perezoso: el mundo se pone al día cuando alguien lo consulta o lo modifica.
+// Convierte el tiempo real en ticks de simulación, según la velocidad.
+// Funciona como un reloj perezoso: el mundo se pone al día cuando alguien lo consulta o lo modifica.
 
 public class RelojDeSimulacion
 {
 
-    /// Ticks que avanzan por segundo real cuando la velocidad es 1.
+    // Ticks que avanzan por segundo real cuando la velocidad es 1.
 
     public const double TicksPorSegundoBase = 1.0;
 
-    /// Velocidad máxima permitida. 
+    // Velocidad máxima permitida. 
 
     public const double VelocidadMaxima = 100.0;
 
@@ -42,7 +42,7 @@ public class RelojDeSimulacion
 
     }
 
-    /// Pone al día el mundo y devuelve una foto de su estado. 
+    // Pone al día el mundo y devuelve una foto de su estado. 
   
     public EstadoDelReloj ObtenerEstado()
 
@@ -58,7 +58,7 @@ public class RelojDeSimulacion
 
     }
 
-    /// Pone al día el mundo según el tiempo real transcurrido.
+    // Pone al día el mundo según el tiempo real transcurrido.
   
     public void Sincronizar()
 
@@ -73,7 +73,7 @@ public class RelojDeSimulacion
 
     }
 
-    /// Detiene el avance del tiempo. Si ya estaba pausado, no hace nada. // NUEVO
+    // Detiene el avance del tiempo. Si ya estaba pausado, no hace nada. // NUEVO
 
     public void Pausar()
 
@@ -89,7 +89,7 @@ public class RelojDeSimulacion
 
     }
 
-    /// Reanuda el avance del tiempo con la velocidad que tenía. // NUEVO
+    // Reanuda el avance del tiempo con la velocidad que tenía. // NUEVO
 
     public void Reanudar()
 
@@ -106,7 +106,7 @@ public class RelojDeSimulacion
 
     }
 
-    /// Cambia la velocidad. El tiempo anterior se cuenta con la velocidad vieja. // NUEVO
+    // Cambia la velocidad. El tiempo anterior se cuenta con la velocidad vieja. // NUEVO
 
     public void CambiarVelocidad(double nuevaVelocidad)
 

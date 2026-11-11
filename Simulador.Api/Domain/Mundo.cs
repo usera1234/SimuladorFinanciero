@@ -1,19 +1,19 @@
 ﻿namespace Simulador.Api.Domain
 
-/// Representa el estado del mundo simulado.
-/// Sabe en qué tick está y cómo avanzar.
+// Representa el estado del mundo simulado.
+// Sabe en qué tick está y cómo avanzar.
 
 
 {
     public class Mundo
     {
 
-        /// Tick actual de la simulación. Empieza en 0.
+        // Tick actual de la simulación. Empieza en 0.
         public long TickActual { get; private set; }
 
-        /// Avanza la simulación la cantidad de ticks indicada.
+        // Avanza la simulación la cantidad de ticks indicada.
 
-        /// <param name="cantidad">Cantidad de ticks a avanzar. No puede ser negativa.</param>
+        // <param name="cantidad">Cantidad de ticks a avanzar. No puede ser negativa.</param>
 
         public void AvanzarTicks(long cantidad)
 
