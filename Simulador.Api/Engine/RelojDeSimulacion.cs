@@ -42,24 +42,30 @@ public class RelojDeSimulacion
 
     }
 
-    // Pone al día el mundo y devuelve una foto de su estado. 
-  
-    public EstadoDelReloj ObtenerEstado()
+    // Pone al día el mundo y devuelve una foto de su estado.
+
+    public EstadoDelMundo ObtenerEstado()
 
     {
 
         lock (_candado)
+
         {
 
             SincronizarSinBloquear();
-            return new EstadoDelReloj(Mundo.TickActual, Velocidad, EstaPausado);
+
+            var factores = Mundo.Factores
+                .Select(factor => new EstadoDeFactor(factor.Nombre, factor.ValorActual))
+                .ToList();
+
+            return new EstadoDelMundo(Mundo.TickActual, Velocidad, EstaPausado, factores);
 
         }
 
     }
 
     // Pone al día el mundo según el tiempo real transcurrido.
-  
+
     public void Sincronizar()
 
     {

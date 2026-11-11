@@ -125,4 +125,19 @@ public class RelojDeSimulacionTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => reloj.CambiarVelocidad(velocidadInvalida));
     }
+
+    [Fact]
+    public void ObtenerEstado_IncluyeLosFactoresPuestosAlDia()
+    {
+        var factor = new Factor("Prueba", valorNormal: 100, volatilidad: 0, fuerzaDeRetorno: 0.1, valorInicial: 110);
+        var mundo = new Mundo(new[] { factor }, new Random(1));
+        var reloj = new RelojDeSimulacion(mundo, _tiempo);
+
+        PasarSegundos(2);
+        var estado = reloj.ObtenerEstado();
+
+        var estadoDelFactor = Assert.Single(estado.Factores);
+        Assert.Equal("Prueba", estadoDelFactor.Nombre);
+        Assert.Equal(108.1, estadoDelFactor.Valor, precision: 10);
+    }
 }

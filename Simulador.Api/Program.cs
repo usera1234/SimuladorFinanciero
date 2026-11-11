@@ -3,11 +3,12 @@ using Simulador.Api.Engine;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
+
+// Fuente de la hora real.
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<Mundo>();
+
+// Un único mundo, con sus factores iniciales (valores provisorios).
 builder.Services.AddSingleton(servicios => new Mundo(
     new[]
     {
@@ -16,13 +17,17 @@ builder.Services.AddSingleton(servicios => new Mundo(
         new Factor("Ánimo cripto", valorNormal: 0.0, volatilidad: 1.0, fuerzaDeRetorno: 0.05),
     },
     new Random()));
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+// Un único reloj, construido con el mundo y la fuente de la hora.
+builder.Services.AddSingleton(servicios => new RelojDeSimulacion(
+    servicios.GetRequiredService<Mundo>(),
+    servicios.GetRequiredService<TimeProvider>()));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -30,9 +35,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

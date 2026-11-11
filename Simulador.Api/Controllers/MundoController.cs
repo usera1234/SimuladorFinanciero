@@ -27,7 +27,7 @@ public class MundoController : ControllerBase
 
     [HttpGet]
 
-    public ActionResult<EstadoDelReloj> ObtenerEstado()
+    public ActionResult<EstadoDelMundo> ObtenerEstado()
 
     {
 
@@ -39,7 +39,7 @@ public class MundoController : ControllerBase
 
     [HttpPost("pausar")]
 
-    public ActionResult<EstadoDelReloj> Pausar()
+    public ActionResult<EstadoDelMundo> Pausar()
 
     {
 
@@ -52,7 +52,7 @@ public class MundoController : ControllerBase
    
     [HttpPost("reanudar")]
 
-    public ActionResult<EstadoDelReloj> Reanudar()
+    public ActionResult<EstadoDelMundo> Reanudar()
 
     {
 
@@ -65,7 +65,7 @@ public class MundoController : ControllerBase
    
     [HttpPut("velocidad")]
 
-    public ActionResult<EstadoDelReloj> CambiarVelocidad(CambiarVelocidadRequest pedido)
+    public ActionResult<EstadoDelMundo> CambiarVelocidad(CambiarVelocidadRequest pedido)
 
     {
 

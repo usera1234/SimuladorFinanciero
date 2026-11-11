@@ -1,6 +1,6 @@
 ﻿namespace Simulador.Api.Domain;
 
-// Variable de la economía (inflación, tipo de cambio, etc.) que cambia en cada tick.
+// Variable de la economía (inflación, devaluación, ánimo cripto, etc.) que cambia en cada tick.
 // Se mueve al azar, con tendencia a volver a su valor normal.
 
 public class Factor
@@ -23,7 +23,13 @@ public class Factor
 
     public double ValorActual { get; private set; }
 
-    public Factor(string nombre, double valorNormal, double volatilidad, double fuerzaDeRetorno)
+    public Factor(
+        
+        string nombre,
+        double valorNormal,
+        double volatilidad,
+        double fuerzaDeRetorno,
+        double? valorInicial = null)
 
     {
 
@@ -32,7 +38,7 @@ public class Factor
         {
 
             throw new ArgumentException("El factor necesita un nombre.", nameof(nombre));
-
+        
         }
 
         if (volatilidad < 0)
@@ -48,18 +54,19 @@ public class Factor
         {
 
             throw new ArgumentOutOfRangeException(nameof(fuerzaDeRetorno), "La fuerza de retorno debe estar entre 0 y 1.");
-
+        
         }
 
         Nombre = nombre;
         ValorNormal = valorNormal;
         Volatilidad = volatilidad;
         FuerzaDeRetorno = fuerzaDeRetorno;
-        ValorActual = valorNormal; // Arranca en su valor normal.
+        ValorActual = valorInicial ?? valorNormal; // Si no se indica un valor inicial, arranca en el normal.
 
     }
 
     // Mueve el factor un tick: un tirón hacia su valor normal más un empujón al azar.
+
     public void Avanzar(Random azar)
 
     {
@@ -68,7 +75,7 @@ public class Factor
         var empujon = Volatilidad * azar.SiguienteNormal();
 
         ValorActual += tiron + empujon;
-
+    
     }
 
 }

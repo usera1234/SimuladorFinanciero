@@ -40,4 +40,28 @@ public class MundoTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => mundo.AvanzarTicks(-1));
     }
+
+    [Fact]
+    public void AvanzarTicks_MueveLosFactoresUnaVezPorTick()
+    {
+        var factor = new Factor("Prueba", valorNormal: 100, volatilidad: 0, fuerzaDeRetorno: 0.1, valorInicial: 110);
+        var mundo = new Mundo(new[] { factor }, new Random(1));
+
+        mundo.AvanzarTicks(2);
+
+        Assert.Equal(2L, mundo.TickActual);
+        Assert.Equal(108.1, mundo.Factores[0].ValorActual, precision: 10);
+    }
+
+    [Fact]
+    public void AvanzarTicks_ConLaMismaSemilla_EsReproducible()
+    {
+        var mundoA = new Mundo(new[] { new Factor("A", 2, 0.5, 0.05) }, new Random(7));
+        var mundoB = new Mundo(new[] { new Factor("A", 2, 0.5, 0.05) }, new Random(7));
+
+        mundoA.AvanzarTicks(365);
+        mundoB.AvanzarTicks(365);
+
+        Assert.Equal(mundoA.Factores[0].ValorActual, mundoB.Factores[0].ValorActual);
+    }
 }
