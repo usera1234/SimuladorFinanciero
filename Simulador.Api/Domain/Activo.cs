@@ -2,19 +2,17 @@
 
 // Instrumento en el que se puede invertir. Su precio cambia en cada tick
 // según su rendimiento base, su sensibilidad a los factores y su azar propio.
-
 public class Activo
 {
     // Días por mes, para convertir rendimientos mensuales en diarios.
     public const double DiasPorMes = 30.0;
 
-    // Rendimiento diario mínimo: evita que el precio llegue a cero o se vuelva negativo.
+    // Rendimiento mínimo de un cambio de precio: evita que el precio llegue a cero o se vuelva negativo.
     public const double RendimientoDiarioMinimo = -0.99;
 
     private readonly Dictionary<string, double> _sensibilidades;
 
     public string Nombre { get; }
-
     public TipoDeActivo Tipo { get; }
 
     // Rendimiento propio del activo, en porcentaje mensual, sin contar los factores.
@@ -28,7 +26,7 @@ public class Activo
 
     public double PrecioActual { get; private set; }
 
-    // Rendimiento del último tick (0,01 = subió 1%). Lo usarán las empresas para su racha.
+    // Rendimiento total del último tick (0,01 = subió 1%), incluyendo mercado y eventos.
     public double UltimoRendimiento { get; private set; }
 
     // Si se puede comprar una parte de una unidad (0,5 Bitcoin) o solo unidades enteras.
@@ -66,8 +64,32 @@ public class Activo
         _sensibilidades = new Dictionary<string, double>(sensibilidades); // Copia propia.
     }
 
-    // Mueve el precio un tick según el valor actual de los factores.
+    // Mueve el precio un tick: primero el mercado, después lo propio de cada tipo de activo.
     public void Avanzar(IReadOnlyDictionary<string, double> valoresDeFactores, Random azar)
+    {
+        var precioAlInicioDelTick = PrecioActual;
+
+        AplicarRendimiento(CalcularRendimientoDeMercado(valoresDeFactores, azar));
+        AlTerminarElTick(precioAlInicioDelTick, azar);
+
+        UltimoRendimiento = PrecioActual / precioAlInicioDelTick - 1;
+    }
+
+    // Lugar para que las clases que heredan agreguen comportamiento al final de cada tick.
+    // En un activo común no hace nada.
+    protected virtual void AlTerminarElTick(double precioAlInicioDelTick, Random azar)
+    {
+    }
+
+    // Cambia el precio según un rendimiento (0,05 = sube 5%).
+    protected void AplicarRendimiento(double rendimiento)
+    {
+        rendimiento = Math.Max(rendimiento, RendimientoDiarioMinimo);
+        PrecioActual *= 1 + rendimiento;
+    }
+
+    // Rendimiento diario causado por el mercado: base, factores y azar propio.
+    private double CalcularRendimientoDeMercado(IReadOnlyDictionary<string, double> valoresDeFactores, Random azar)
     {
         var rendimientoMensual = RendimientoBaseMensual;
 
@@ -82,19 +104,7 @@ public class Activo
             rendimientoMensual += sensibilidad * valor;
         }
 
-        var rendimientoDiario = rendimientoMensual / 100.0 / DiasPorMes
-                              + VolatilidadDiaria / 100.0 * azar.SiguienteNormal();
-
-        AplicarRendimiento(rendimientoDiario);
-    }
-
-    // Cambia el precio según un rendimiento (0,05 = sube 5%). Protegido para que
-    // las clases que hereden de Activo, como las empresas, puedan usarlo en sus eventos.
-    protected void AplicarRendimiento(double rendimiento)
-    {
-        rendimiento = Math.Max(rendimiento, RendimientoDiarioMinimo);
-
-        PrecioActual *= 1 + rendimiento;
-        UltimoRendimiento = rendimiento;
+        return rendimientoMensual / 100.0 / DiasPorMes
+             + VolatilidadDiaria / 100.0 * azar.SiguienteNormal();
     }
 }
