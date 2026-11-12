@@ -30,16 +30,15 @@ public class RelojDeSimulacion
 
     public bool EstaPausado { get; private set; }
 
-    public RelojDeSimulacion(Mundo mundo, TimeProvider tiempo, double velocidadInicial = 1.0)
+    public RelojDeSimulacion(Mundo mundo, TimeProvider tiempo, double velocidadInicial = 1.0, bool iniciarPausado = false)
     {
-
-        ValidarVelocidad(velocidadInicial); // La validación pasó a un método propio
+        ValidarVelocidad(velocidadInicial);
 
         Mundo = mundo;
         _tiempo = tiempo;
         Velocidad = velocidadInicial;
+        EstaPausado = iniciarPausado;
         _ultimaSincronizacion = _tiempo.GetUtcNow();
-
     }
 
     // Pone al día el mundo y devuelve una foto de su estado.

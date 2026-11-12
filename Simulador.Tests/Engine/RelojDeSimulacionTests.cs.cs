@@ -162,4 +162,19 @@ public class RelojDeSimulacionTests
         Assert.Equal(2L, estado.UltimosEventos[0].Tick);
         Assert.Equal(1L, estado.UltimosEventos[1].Tick);
     }
+
+    [Fact]
+    public void Constructor_ConIniciarPausado_NoAvanzaHastaReanudar()
+    {
+        var reloj = new RelojDeSimulacion(new Mundo(), _tiempo, iniciarPausado: true);
+
+        PasarSegundos(10);
+        reloj.Sincronizar();
+        Assert.Equal(0L, reloj.Mundo.TickActual);
+
+        reloj.Reanudar();
+        PasarSegundos(3);
+        reloj.Sincronizar();
+        Assert.Equal(3L, reloj.Mundo.TickActual);
+    }
 }
