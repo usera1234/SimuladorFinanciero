@@ -64,4 +64,54 @@ public class MundoTests
 
         Assert.Equal(mundoA.Factores[0].ValorActual, mundoB.Factores[0].ValorActual);
     }
+
+    [Fact]
+    public void AvanzarTicks_RegistraLosEventosConSuTick()
+    {
+        var empresa = new Empresa("Prueba", 100, 0, 0, new Dictionary<string, double>(),
+            probabilidadBaseDiaria: 1,
+            eventosPosibles: new[] { new DefinicionDeEvento("Suba", Peso: 1, ImpactoMinimo: 10, ImpactoMaximo: 10) });
+        var mundo = new Mundo(Array.Empty<Factor>(), new Activo[] { empresa }, new Random(1));
+
+        mundo.AvanzarTicks(3);
+
+        Assert.Equal(3, mundo.UltimosEventos.Count);
+        Assert.Equal(new long[] { 1, 2, 3 }, mundo.UltimosEventos.Select(registro => registro.Tick));
+        Assert.All(mundo.UltimosEventos, registro => Assert.Equal("Prueba", registro.Empresa));
+    }
+
+    [Fact]
+    public void UltimosEventos_NoSuperaElMaximo()
+    {
+        var empresa = new Empresa("Prueba", 100, 0, 0, new Dictionary<string, double>(),
+            probabilidadBaseDiaria: 1,
+            eventosPosibles: new[] { new DefinicionDeEvento("Nada", Peso: 1, ImpactoMinimo: 0, ImpactoMaximo: 0) });
+        var mundo = new Mundo(Array.Empty<Factor>(), new Activo[] { empresa }, new Random(1));
+
+        mundo.AvanzarTicks(60);
+
+        Assert.Equal(Mundo.MaximoDeEventosGuardados, mundo.UltimosEventos.Count);
+        Assert.Equal(11L, mundo.UltimosEventos[0].Tick);
+        Assert.Equal(60L, mundo.UltimosEventos[^1].Tick);
+    }
+
+    [Fact]
+    public void Constructor_ConActivoQueDependeDeFactorInexistente_LanzaExcepcion()
+    {
+        var activo = new Activo("Prueba", TipoDeActivo.Moneda, 100, 0, 0,
+            new Dictionary<string, double> { ["No existe"] = 1 });
+
+        Assert.Throws<ArgumentException>(() =>
+            new Mundo(Array.Empty<Factor>(), new[] { activo }, new Random(1)));
+    }
+
+    [Fact]
+    public void Constructor_ConActivosRepetidos_LanzaExcepcion()
+    {
+        var activoA = new Activo("Repetido", TipoDeActivo.Moneda, 100, 0, 0, new Dictionary<string, double>());
+        var activoB = new Activo("Repetido", TipoDeActivo.Moneda, 100, 0, 0, new Dictionary<string, double>());
+
+        Assert.Throws<ArgumentException>(() =>
+            new Mundo(Array.Empty<Factor>(), new[] { activoA, activoB }, new Random(1)));
+    }
 }
