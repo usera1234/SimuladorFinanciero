@@ -26,6 +26,8 @@ public class Activo
 
     public double PrecioActual { get; private set; }
 
+    public double PrecioInicial { get; }
+
     // Rendimiento total del último tick (0,01 = subió 1%), incluyendo mercado y eventos.
     public double UltimoRendimiento { get; private set; }
 
@@ -58,6 +60,7 @@ public class Activo
 
         Nombre = nombre;
         Tipo = tipo;
+        PrecioInicial = precioInicial;
         PrecioActual = precioInicial;
         RendimientoBaseMensual = rendimientoBaseMensual;
         VolatilidadDiaria = volatilidadDiaria;

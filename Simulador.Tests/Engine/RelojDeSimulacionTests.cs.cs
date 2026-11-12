@@ -140,4 +140,26 @@ public class RelojDeSimulacionTests
         Assert.Equal("Prueba", estadoDelFactor.Nombre);
         Assert.Equal(108.1, estadoDelFactor.Valor, precision: 10);
     }
+
+    [Fact]
+    public void ObtenerEstado_IncluyeActivosYEventosDelMasNuevoAlMasViejo()
+    {
+        var empresa = new Empresa("Prueba", 100, 0, 0, new Dictionary<string, double>(),
+            probabilidadBaseDiaria: 1,
+            eventosPosibles: new[] { new DefinicionDeEvento("Suba", Peso: 1, ImpactoMinimo: 10, ImpactoMaximo: 10) });
+        var mundo = new Mundo(Array.Empty<Factor>(), new Activo[] { empresa }, new Random(1));
+        var reloj = new RelojDeSimulacion(mundo, _tiempo);
+
+        PasarSegundos(2);
+        var estado = reloj.ObtenerEstado();
+
+        var estadoDelActivo = Assert.Single(estado.Activos);
+        Assert.Equal(TipoDeActivo.Accion, estadoDelActivo.Tipo);
+        Assert.Equal(121.0, estadoDelActivo.Precio, precision: 10);
+        Assert.Equal(21.0, estadoDelActivo.VariacionDesdeElInicio, precision: 10);
+
+        Assert.Equal(2, estado.UltimosEventos.Count);
+        Assert.Equal(2L, estado.UltimosEventos[0].Tick);
+        Assert.Equal(1L, estado.UltimosEventos[1].Tick);
+    }
 }

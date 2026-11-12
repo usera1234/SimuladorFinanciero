@@ -85,4 +85,15 @@ public class ActivoTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => CrearActivo(volatilidadDiaria: -1));
     }
+
+    [Fact]
+    public void PrecioInicial_NoCambiaAlAvanzar()
+    {
+        var activo = CrearActivo(rendimientoBaseMensual: 3);
+
+        activo.Avanzar(SinFactores, new Random(1));
+
+        Assert.Equal(100.0, activo.PrecioInicial);
+        Assert.NotEqual(activo.PrecioInicial, activo.PrecioActual);
+    }
 }

@@ -44,6 +44,7 @@ public class RelojDeSimulacion
 
     // Pone al día el mundo y devuelve una foto de su estado.
 
+    // Pone al día el mundo y devuelve una foto de su estado.
     public EstadoDelMundo ObtenerEstado()
 
     {
@@ -58,7 +59,20 @@ public class RelojDeSimulacion
                 .Select(factor => new EstadoDeFactor(factor.Nombre, factor.ValorActual))
                 .ToList();
 
-            return new EstadoDelMundo(Mundo.TickActual, Velocidad, EstaPausado, factores);
+            var activos = Mundo.Activos
+                .Select(activo => new EstadoDeActivo(
+                    activo.Nombre,
+                    activo.Tipo,
+                    activo.PrecioActual,
+                    (activo.PrecioActual / activo.PrecioInicial - 1) * 100))
+                .ToList();
+
+            // Del más nuevo al más viejo, que es como se leen las noticias.
+            var ultimosEventos = Mundo.UltimosEventos
+                .Reverse()
+                .ToList();
+
+            return new EstadoDelMundo(Mundo.TickActual, Velocidad, EstaPausado, factores, activos, ultimosEventos);
 
         }
 

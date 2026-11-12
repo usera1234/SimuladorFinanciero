@@ -1,8 +1,12 @@
-﻿namespace Simulador.Api.Engine;
+﻿using Simulador.Api.Domain;
 
-// Foto del estado del mundo en un momento dado: tiempo y factores.
+namespace Simulador.Api.Engine;
+
+// Foto del estado del mundo en un momento dado: tiempo, factores, activos y últimos eventos.
 public record EstadoDelMundo(
     long Tick,
     double Velocidad,
     bool EstaPausado,
-    IReadOnlyList<EstadoDeFactor> Factores);
+    IReadOnlyList<EstadoDeFactor> Factores,
+    IReadOnlyList<EstadoDeActivo> Activos,
+    IReadOnlyList<RegistroDeEvento> UltimosEventos);

@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
 using Simulador.Api.Domain;
 using Simulador.Api.Engine;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// Los enum se envían como texto ("Accion") en lugar de número (2).
+builder.Services.AddControllers()
+    .AddJsonOptions(opciones => opciones.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // Fuente de la hora real.
 builder.Services.AddSingleton(TimeProvider.System);
