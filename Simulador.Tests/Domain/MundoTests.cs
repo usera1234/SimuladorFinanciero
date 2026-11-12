@@ -114,4 +114,33 @@ public class MundoTests
         Assert.Throws<ArgumentException>(() =>
             new Mundo(Array.Empty<Factor>(), new[] { activoA, activoB }, new Random(1)));
     }
+
+    [Fact]
+    public void IndiceDePrecios_SinFactorDeInflacion_QuedaEnUno()
+    {
+        var mundo = new Mundo(new[] { new Factor("X", 3, 0, 0.1) }, new Random(1));
+
+        mundo.AvanzarTicks(30);
+
+        Assert.Equal(1.0, mundo.IndiceDePrecios);
+    }
+
+    [Fact]
+    public void IndiceDePrecios_ConInflacionFija_SeAcumulaCadaTick()
+    {
+        // Inflación fija de 3% mensual = 0,1% diario.
+        var inflacion = new Factor("Inflación", valorNormal: 3, volatilidad: 0, fuerzaDeRetorno: 0.1);
+        var mundo = new Mundo(new[] { inflacion }, Array.Empty<Activo>(), new Random(1), factorDeInflacion: "Inflación");
+
+        mundo.AvanzarTicks(2);
+
+        Assert.Equal(1.001 * 1.001, mundo.IndiceDePrecios, precision: 10);
+    }
+
+    [Fact]
+    public void Constructor_ConFactorDeInflacionInexistente_LanzaExcepcion()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new Mundo(Array.Empty<Factor>(), Array.Empty<Activo>(), new Random(1), factorDeInflacion: "No existe"));
+    }
 }

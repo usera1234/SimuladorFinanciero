@@ -20,9 +20,19 @@ public class Mundo
 
     private readonly List<RegistroDeEvento> _ultimosEventos = new();
 
+    // Cuánto subieron los precios desde el inicio (1,25 = subieron 25%).
+    // Sirve para calcular el valor real de una cartera, es decir, su poder de compra.
+    public double IndiceDePrecios { get; private set; } = 1.0;
+
     // Crea un mundo vacío. Útil para probar solo el paso del tiempo.
-    public Mundo() : this(Array.Empty<Factor>(), Array.Empty<Activo>(), new Random())
+    public Mundo(IEnumerable<Factor> factores, IEnumerable<Activo> activos, Random azar, string? factorDeInflacion = null)
     {
+        _factores = factores.ToList();
+        _activos = activos.ToList();
+        _azar = azar;
+        _factorDeInflacion = factorDeInflacion;
+
+        ValidarConfiguracion();
     }
 
     // Crea un mundo con factores pero sin activos.
@@ -31,8 +41,12 @@ public class Mundo
     }
     // Últimos eventos ocurridos, del más viejo al más nuevo.
     public IReadOnlyList<RegistroDeEvento> UltimosEventos => _ultimosEventos;
+
+    // Nombre del factor que representa la inflación, o null si el mundo no tiene uno.
+    private readonly string? _factorDeInflacion;
+
     // Cantidad máxima de eventos que se guardan; los más viejos se descartan.
-    
+
     public Mundo(IEnumerable<Factor> factores, IEnumerable<Activo> activos, Random azar)
     {
         _factores = factores.ToList();
@@ -61,6 +75,11 @@ public class Mundo
             }
 
             var valoresDeFactores = _factores.ToDictionary(factor => factor.Nombre, factor => factor.ValorActual);
+
+            if (_factorDeInflacion is not null)
+            {
+                IndiceDePrecios *= 1 + valoresDeFactores[_factorDeInflacion] / 100.0 / Activo.DiasPorMes;
+            }
 
             foreach (var activo in _activos)
             {
@@ -101,6 +120,11 @@ public class Mundo
                 }
             }
         }
+
+        if (_factorDeInflacion is not null && !nombresDeFactores.Contains(_factorDeInflacion))
+        {
+            throw new ArgumentException($"El factor de inflación '{_factorDeInflacion}' no existe.");
+        }
     }
     // Guarda los eventos que ocurrieron en el tick que acaba de terminar.
     private void RegistrarEventos()
@@ -119,4 +143,5 @@ public class Mundo
             _ultimosEventos.RemoveRange(0, _ultimosEventos.Count - MaximoDeEventosGuardados);
         }
     }
+
 }

@@ -18,7 +18,7 @@ public static class ConfiguracionDelMercado
     // Crea un mundo nuevo. Con la misma semilla, el mercado se comporta siempre igual.
     public static Mundo CrearMundo(int semilla)
     {
-        return new Mundo(CrearFactores(), CrearActivos(), new Random(semilla));
+        return new Mundo(CrearFactores(), CrearActivos(), new Random(semilla), factorDeInflacion: Inflacion);
     }
 
     private static Factor[] CrearFactores()
