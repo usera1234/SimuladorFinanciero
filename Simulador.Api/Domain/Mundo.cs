@@ -16,6 +16,10 @@ public class Mundo
     // Activos en los que se puede invertir. Se pueden leer, pero no agregar ni quitar desde afuera.
     public IReadOnlyList<Activo> Activos => _activos;
 
+    public const int MaximoDeEventosGuardados = 50;
+
+    private readonly List<RegistroDeEvento> _ultimosEventos = new();
+
     // Crea un mundo vacío. Útil para probar solo el paso del tiempo.
     public Mundo() : this(Array.Empty<Factor>(), Array.Empty<Activo>(), new Random())
     {
@@ -25,7 +29,10 @@ public class Mundo
     public Mundo(IEnumerable<Factor> factores, Random azar) : this(factores, Array.Empty<Activo>(), azar)
     {
     }
-
+    // Últimos eventos ocurridos, del más viejo al más nuevo.
+    public IReadOnlyList<RegistroDeEvento> UltimosEventos => _ultimosEventos;
+    // Cantidad máxima de eventos que se guardan; los más viejos se descartan.
+    
     public Mundo(IEnumerable<Factor> factores, IEnumerable<Activo> activos, Random azar)
     {
         _factores = factores.ToList();
@@ -61,6 +68,7 @@ public class Mundo
             }
 
             TickActual++;
+            RegistrarEventos();
         }
     }
 
@@ -92,6 +100,23 @@ public class Mundo
                         $"El activo '{activo.Nombre}' depende del factor '{nombreDelFactor}', que no existe.");
                 }
             }
+        }
+    }
+    // Guarda los eventos que ocurrieron en el tick que acaba de terminar.
+    private void RegistrarEventos()
+    {
+        foreach (var activo in _activos)
+        {
+            if (activo is Empresa empresa && empresa.EventoDelUltimoTick is not null)
+            {
+                var evento = empresa.EventoDelUltimoTick;
+                _ultimosEventos.Add(new RegistroDeEvento(TickActual, empresa.Nombre, evento.Nombre, evento.ImpactoPorcentual));
+            }
+        }
+
+        if (_ultimosEventos.Count > MaximoDeEventosGuardados)
+        {
+            _ultimosEventos.RemoveRange(0, _ultimosEventos.Count - MaximoDeEventosGuardados);
         }
     }
 }
