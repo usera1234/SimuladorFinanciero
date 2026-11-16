@@ -1,0 +1,414 @@
+﻿/* =========================================================================
+   Simulador de inversiones — estilos
+   Los colores y medidas están en variables: cambiarlos acá cambia toda la página.
+   ========================================================================= */
+
+:root {
+    --fondo: #EEF1EE;
+    --superficie: #FFFFFF;
+    --tinta: #1C2B3A;
+    --tinta-suave: #5A6773;
+    --celeste: #4A9BD1;
+    --celeste-oscuro: #2F7DB3;
+    --ganancia: #2F7A4D;
+    --perdida: #B23B3B;
+    --borde: #D5DBD6;
+    --radio: 6px;
+    --espacio: 1.5rem;
+}
+
+/* Modo oscuro: se activa solo si el dispositivo lo tiene configurado. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --fondo: #151C22;
+        --superficie: #1E2730;
+        --tinta: #E4E9EE;
+        --tinta-suave: #9AA7B2;
+        --celeste: #6BB3E0;
+        --celeste-oscuro: #3B8CC4;
+        --ganancia: #5CB884;
+        --perdida: #E07070;
+        --borde: #34404B;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Sin esto, reglas como "display: flex" le ganan al atributo hidden y el elemento no se oculta. */
+[hidden] {
+    display: none !important;
+}
+
+body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--tinta);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    /* Números de ancho fijo: las columnas no se mueven cuando cambian los precios. */
+    font-variant-numeric: tabular-nums;
+}
+
+h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.0625rem;
+    font-weight: 600;
+}
+
+/* ---------- Barra superior ---------- */
+
+.barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: 0.875rem var(--espacio);
+    background: var(--superficie);
+    border-bottom: 1px solid var(--borde);
+}
+
+.marca {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.tiempo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dia {
+    min-width: 5.5rem;
+    font-weight: 600;
+}
+
+.velocidad {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--tinta-suave);
+}
+
+/* ---------- Estructura ---------- */
+
+main {
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: var(--espacio);
+}
+
+.columnas {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--espacio);
+    align-items: start;
+    margin-bottom: var(--espacio);
+}
+
+.columnas-iguales {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lateral {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espacio);
+}
+
+.panel {
+    padding: 1.25rem;
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+}
+
+/* ---------- Controles ---------- */
+
+button,
+select,
+input {
+    font: inherit;
+    color: var(--tinta);
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    padding: 0.45rem 0.8rem;
+}
+
+button {
+    cursor: pointer;
+}
+
+    button:hover {
+        border-color: var(--celeste);
+    }
+
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+        outline: 3px solid var(--celeste);
+        outline-offset: 2px;
+    }
+
+    button.principal {
+        background: var(--celeste-oscuro);
+        border-color: var(--celeste-oscuro);
+        color: #FFFFFF;
+    }
+
+        button.principal:hover {
+            background: var(--celeste);
+            border-color: var(--celeste);
+        }
+
+    button.secundario {
+        background: transparent;
+    }
+
+    /* Nombre de un activo en la tabla del mercado: se ve como texto, funciona como botón. */
+    button.enlace {
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--tinta);
+        font-weight: 600;
+        text-align: left;
+        text-decoration: underline;
+        text-decoration-color: var(--borde);
+        text-underline-offset: 3px;
+    }
+
+        button.enlace:hover {
+            text-decoration-color: var(--celeste);
+        }
+
+/* ---------- Inicio ---------- */
+
+.inicio {
+    max-width: 36rem;
+    margin: 4rem auto;
+    font-size: 1.125rem;
+}
+
+    .inicio .principal {
+        margin-top: 1rem;
+        padding: 0.75rem 1.5rem;
+    }
+
+/* ---------- Patrimonio (elemento protagonista) ---------- */
+
+.patrimonio {
+    padding: 0.5rem 0 var(--espacio);
+}
+
+.valor-nominal {
+    margin: 0;
+    font-size: 2.75rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.valor-real {
+    max-width: 48rem;
+    margin: 0.5rem 0 0;
+    font-size: 1.125rem;
+    color: var(--tinta-suave);
+}
+
+    .valor-real strong {
+        color: var(--tinta);
+    }
+
+.resultados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+    margin: 0.75rem 0 0;
+    color: var(--tinta-suave);
+}
+
+/* ---------- Tablas ---------- */
+
+/* Las tablas anchas se desplazan dentro de su contenedor en lugar de ensanchar la página. */
+.tabla-contenedor {
+    overflow-x: auto;
+}
+
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .tabla th,
+    .tabla td {
+        padding: 0.5rem 0.5rem;
+        border-bottom: 1px solid var(--borde);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .tabla th {
+        font-weight: 500;
+        color: var(--tinta-suave);
+    }
+
+    .tabla tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .tabla .numero {
+        text-align: right;
+    }
+
+/* ---------- Formulario ---------- */
+
+.formulario {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+    .formulario label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        color: var(--tinta-suave);
+    }
+
+    .formulario select,
+    .formulario input {
+        width: 100%;
+    }
+
+.acciones {
+    display: flex;
+    gap: 0.5rem;
+}
+
+    .acciones button {
+        flex: 1;
+    }
+
+.estimacion {
+    margin: 0;
+    min-height: 1.5em;
+}
+
+/* ---------- Listas, factores y textos ---------- */
+
+.lista {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .lista li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--borde);
+    }
+
+        .lista li:last-child {
+            border-bottom: none;
+        }
+
+.cuando {
+    display: block;
+    font-size: 0.875rem;
+    color: var(--tinta-suave);
+}
+
+.factores {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem 1rem;
+    margin: 0;
+}
+
+    .factores dt {
+        color: var(--tinta-suave);
+    }
+
+    .factores dd {
+        margin: 0;
+        text-align: right;
+        font-weight: 600;
+    }
+
+.detalle {
+    margin: 0.5rem 0 0;
+    font-size: 0.875rem;
+    color: var(--tinta-suave);
+}
+
+.efectivo {
+    margin: 0 0 0.75rem;
+}
+
+.aviso {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-left: 4px solid var(--celeste);
+    background: var(--fondo);
+}
+
+.aviso-error {
+    margin-bottom: var(--espacio);
+    border-left-color: var(--perdida);
+    background: var(--superficie);
+}
+
+.aviso.es-error {
+    border-left-color: var(--perdida);
+    color: var(--perdida);
+}
+
+.ganancia {
+    color: var(--ganancia);
+}
+
+.perdida {
+    color: var(--perdida);
+}
+
+/* ---------- Pantallas chicas ---------- */
+
+@media (max-width: 60rem) {
+    .columnas,
+    .columnas-iguales {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 40rem) {
+    :root {
+        --espacio: 1rem;
+    }
+
+    .valor-nominal {
+        font-size: 2rem;
+    }
+
+    /* En pantallas angostas se oculta el tipo de activo para que el precio entre sin desplazar. */
+    .col-tipo {
+        display: none;
+    }
+
+    .inicio {
+        margin: 2rem auto;
+    }
+}
+
+/* Respeta a quienes prefieren menos animaciones. */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}

@@ -24,6 +24,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Sirve la interfaz web (archivos de la carpeta wwwroot). index.html se abre por defecto.
+app.UseDefaultFiles();  
+app.UseStaticFiles();
+
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();

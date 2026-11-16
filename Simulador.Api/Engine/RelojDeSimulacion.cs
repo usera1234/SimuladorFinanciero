@@ -92,6 +92,22 @@ public class RelojDeSimulacion
 
     }
 
+    // Pone al día el mundo y ejecuta una acción sobre él, todo dentro del candado.
+    // Sirve para operar al precio actual sin que el tiempo avance a la mitad.
+    public T EjecutarSincronizado<T>(Func<Mundo, T> accion)
+
+    {
+
+        lock (_candado)
+        {
+
+            SincronizarSinBloquear();
+            return accion(Mundo);
+
+        }
+
+    }
+
     // Detiene el avance del tiempo. Si ya estaba pausado, no hace nada. // NUEVO
 
     public void Pausar()

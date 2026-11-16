@@ -1,0 +1,140 @@
+﻿<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Simulador de inversiones</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header class="barra">
+        <h1 class="marca">Simulador de inversiones</h1>
+
+        <div class="tiempo" id="controles-tiempo" hidden>
+            <span class="dia" id="dia">Día 0</span>
+            <button type="button" id="boton-reanudar">Reanudar</button>
+            <button type="button" id="boton-pausar">Pausar</button>
+            <label class="velocidad">
+                Velocidad
+                <select id="selector-velocidad">
+                    <option value="1">×1</option>
+                    <option value="5">×5</option>
+                    <option value="20">×20</option>
+                    <option value="100">×100</option>
+                </select>
+            </label>
+            <button type="button" class="secundario" id="boton-nueva">Nueva partida</button>
+        </div>
+    </header>
+
+    <main>
+        <p class="aviso aviso-error" id="mensaje-error" role="alert" hidden></p>
+
+        <!-- Pantalla de inicio: se muestra cuando no hay partida. -->
+        <section class="inicio" id="pantalla-inicio">
+            <p>Empezás con $1.000.000 y el mercado en pausa. Mirá los precios, armá tu billetera y, cuando estés listo, hacé correr el tiempo.</p>
+            <p class="detalle">Cada día del juego dura un segundo. Podés pausar o acelerar cuando quieras.</p>
+            <button type="button" class="principal" id="boton-crear">Empezar una partida</button>
+        </section>
+
+        <!-- Pantalla de juego: se muestra cuando hay una partida. -->
+        <div id="pantalla-juego" hidden>
+
+            <!-- Elemento protagonista: la plata del jugador, en pesos y en poder de compra. -->
+            <section class="patrimonio" aria-label="Tu plata">
+                <p class="valor-nominal">Tenés <span id="valor-total">$0</span></p>
+                <p class="valor-real">
+                    Con una inflación acumulada de <span id="inflacion">0 %</span>, eso equivale a
+                    <strong id="valor-real">$0</strong> de cuando empezaste.
+                </p>
+                <p class="resultados">
+                    <span>Resultado en pesos: <strong id="ganancia-nominal">0 %</strong></span>
+                    <span>En poder de compra: <strong id="ganancia-real">0 %</strong></span>
+                </p>
+            </section>
+
+            <div class="columnas">
+                <section class="panel" aria-labelledby="titulo-mercado">
+                    <h2 id="titulo-mercado">Mercado</h2>
+                    <div class="tabla-contenedor">
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Activo</th>
+                                    <th scope="col" class="col-tipo">Tipo</th>
+                                    <th scope="col" class="numero">Precio</th>
+                                    <th scope="col" class="numero">Desde el inicio</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cuerpo-mercado"></tbody>
+                        </table>
+                    </div>
+                    <p class="detalle">Tocá el nombre de un activo para elegirlo en el formulario.</p>
+                </section>
+
+                <div class="lateral">
+                    <section class="panel" aria-labelledby="titulo-operar">
+                        <h2 id="titulo-operar">Comprar o vender</h2>
+                        <form class="formulario" id="formulario-operacion" novalidate>
+                            <label>
+                                Activo
+                                <select id="selector-activo"></select>
+                            </label>
+                            <label>
+                                Cantidad
+                                <input type="text" inputmode="decimal" id="cantidad" autocomplete="off" placeholder="0">
+                            </label>
+                            <p class="detalle" id="ayuda-cantidad"></p>
+                            <p class="estimacion" id="estimacion"></p>
+                            <div class="acciones">
+                                <button type="submit" class="principal" value="comprar">Comprar</button>
+                                <button type="submit" class="secundario" value="vender">Vender</button>
+                            </div>
+                            <p class="aviso" id="mensaje-operacion" role="status" hidden></p>
+                        </form>
+                    </section>
+
+                    <section class="panel" aria-labelledby="titulo-billetera">
+                        <h2 id="titulo-billetera">Tu billetera</h2>
+                        <p class="efectivo">Efectivo: <strong id="efectivo">$0</strong></p>
+                        <div class="tabla-contenedor">
+                            <table class="tabla" id="tabla-posiciones">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Activo</th>
+                                        <th scope="col" class="numero">Cantidad</th>
+                                        <th scope="col" class="numero">Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cuerpo-posiciones"></tbody>
+                            </table>
+                        </div>
+                        <p class="detalle" id="billetera-vacia">Todavía no compraste nada: todo tu dinero está en efectivo.</p>
+                    </section>
+                </div>
+            </div>
+
+            <div class="columnas columnas-iguales">
+                <section class="panel" aria-labelledby="titulo-noticias">
+                    <h2 id="titulo-noticias">Noticias de las empresas</h2>
+                    <ul class="lista" id="lista-noticias"></ul>
+                    <p class="detalle" id="noticias-vacias">Todavía no hubo noticias.</p>
+                </section>
+
+                <section class="panel" aria-labelledby="titulo-economia">
+                    <h2 id="titulo-economia">Economía</h2>
+                    <dl class="factores" id="lista-factores"></dl>
+                </section>
+
+                <section class="panel" aria-labelledby="titulo-operaciones">
+                    <h2 id="titulo-operaciones">Tus operaciones</h2>
+                    <ul class="lista" id="lista-operaciones"></ul>
+                    <p class="detalle" id="operaciones-vacias">Todavía no hiciste operaciones.</p>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,10 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Simulador.Api.Domain;
 using Simulador.Api.Engine;
 
 namespace Simulador.Api.Controllers;
 
-// Permite crear partidas y controlar el paso del tiempo en cada una.
+// Permite crear partidas, controlar el paso del tiempo y operar en cada una.
 [ApiController]
 [Route("partidas")]
 public class PartidasController : ControllerBase
@@ -77,8 +78,53 @@ public class PartidasController : ControllerBase
         return ArmarRespuesta(partida);
     }
 
+    // Compra un activo al precio actual.
+    [HttpPost("{id:guid}/comprar")]
+    public ActionResult<RespuestaDePartida> Comprar(Guid id, OperarRequest pedido)
+    {
+        var partida = _gestor.Obtener(id);
+        if (partida is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            partida.Comprar(pedido.Activo, pedido.Cantidad);
+        }
+        catch (OperacionInvalidaException error)
+        {
+            return Problem(title: "Operación inválida", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        return ArmarRespuesta(partida);
+    }
+
+    // Vende un activo al precio actual.
+    [HttpPost("{id:guid}/vender")]
+    public ActionResult<RespuestaDePartida> Vender(Guid id, OperarRequest pedido)
+    {
+        var partida = _gestor.Obtener(id);
+        if (partida is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            partida.Vender(pedido.Activo, pedido.Cantidad);
+        }
+        catch (OperacionInvalidaException error)
+        {
+            return Problem(title: "Operación inválida", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        return ArmarRespuesta(partida);
+    }
+
     private static RespuestaDePartida ArmarRespuesta(Partida partida)
     {
-        return new RespuestaDePartida(partida.Id, partida.Semilla, partida.Reloj.ObtenerEstado());
+        var estado = partida.ObtenerEstado();
+        return new RespuestaDePartida(partida.Id, partida.Semilla, estado.Mundo, estado.Billetera);
     }
 }
