@@ -7,6 +7,7 @@ public record EstadoDelMundo(
     long Tick,
     double Velocidad,
     bool EstaPausado,
+    double InflacionAcumuladaPorcentual,
     IReadOnlyList<EstadoDeFactor> Factores,
     IReadOnlyList<EstadoDeActivo> Activos,
     IReadOnlyList<RegistroDeEvento> UltimosEventos);

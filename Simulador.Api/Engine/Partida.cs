@@ -49,6 +49,17 @@ public class Partida
             new EstadoDePartida(Reloj.ObtenerEstado(), ArmarEstadoDeBilletera(mundo)));
     }
 
+    // Evolución de la billetera y de los precios desde el inicio, con como máximo "maximoDePuntos" días.
+    public HistorialDePartida ObtenerHistorial(int maximoDePuntos)
+    {
+        return Reloj.EjecutarSincronizado(mundo =>
+        {
+            var puntos = CalculadoraDeHistorial.ElegirPuntos(mundo.Historial, maximoDePuntos);
+            var nombres = mundo.Activos.Select(activo => activo.Nombre).ToList();
+            return CalculadoraDeHistorial.Calcular(puntos, nombres, Billetera.CapitalInicial, Billetera.Operaciones);
+        });
+    }
+
     private EstadoDeBilletera ArmarEstadoDeBilletera(Mundo mundo)
     {
         var posiciones = mundo.Activos

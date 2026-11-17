@@ -28,6 +28,12 @@ const CONFIGURACION = {
 
     // Debe coincidir con Billetera.TasaDeComision en el servidor. Solo se usa para la estimación previa.
     tasaDeComision: 0.005,
+
+    // Cantidad máxima de días que se piden para el gráfico. Más puntos = más detalle y más datos por consulta.
+    puntosDelHistorial: 300,
+
+    // Alto del gráfico de la billetera, en píxeles.
+    altoDelGrafico: 240,
 };
 
 const NOMBRES_DE_TIPOS = {
@@ -79,6 +85,7 @@ const api = {
     cambiarVelocidad: (id, velocidad) => pedir(`/partidas/${id}/velocidad`, "PUT", { velocidad }),
     comprar: (id, activo, cantidad) => pedir(`/partidas/${id}/comprar`, "POST", { activo, cantidad }),
     vender: (id, activo, cantidad) => pedir(`/partidas/${id}/vender`, "POST", { activo, cantidad }),
+    historial: (id, puntos) => pedir(`/partidas/${id}/historial?puntos=${puntos}`),
 };
 
 
@@ -130,6 +137,9 @@ let idPartida = null;        // Partida en juego, o null.
 let ultimaPartida = null;    // Último estado recibido de la API.
 let consultando = false;     // Evita superponer consultas si el servidor tarda.
 let selectorPreparado = false;
+let ultimoHistorial = null;  // Último historial recibido, para redibujar el gráfico sin volver a pedirlo.
+let tickDelHistorial = -1;   // Día del último historial pedido: si no cambió, no se vuelve a pedir.
+let pidiendoHistorial = false;
 
 function elemento(id) {
     return document.getElementById(id);
@@ -144,6 +154,9 @@ function olvidarPartida() {
     idPartida = null;
     ultimaPartida = null;
     selectorPreparado = false;
+    ultimoHistorial = null;
+    tickDelHistorial = -1;
+    dibujarGraficoDeBilletera();
     localStorage.removeItem(CONFIGURACION.claveDePartidaGuardada);
     mostrarPantalla(false);
 }
@@ -206,6 +219,7 @@ function mostrarPartida(partida) {
     mostrarEconomia(mundo.factores);
     mostrarOperaciones(billetera.ultimasOperaciones);
     actualizarEstimacion();
+    actualizarHistorial(mundo.tick);
 }
 
 function mostrarTiempo(mundo) {
@@ -235,6 +249,8 @@ function mostrarPatrimonio(mundo, billetera) {
 }
 
 function mostrarMercado(activos) {
+    const escala = calcularEscalaDeMinigraficos();
+
     const filas = activos.map((activo) => {
         const fila = document.createElement("tr");
 
@@ -251,6 +267,10 @@ function mostrarMercado(activos) {
             crear("td", formatearPrecio(activo.precio), "numero"),
             crear("td", formatearPorcentaje(activo.variacionDesdeElInicio), `numero ${claseSegunSigno(activo.variacionDesdeElInicio)}`),
         );
+
+        const celdaMinigrafico = crear("td", "", "col-minigrafico");
+        celdaMinigrafico.append(crearMinigrafico(activo.nombre, escala));
+        fila.append(celdaMinigrafico);
         return fila;
     });
 
@@ -334,6 +354,270 @@ function mostrarOperaciones(operaciones) {
     elemento("operaciones-vacias").hidden = items.length > 0;
 }
 
+
+// ----- 5b. Gráfico de la billetera ---------------------------------------
+// Se dibuja con SVG, sin bibliotecas: cada línea es una "polyline" con un punto por día.
+
+const ESPACIO_DE_SVG = "http://www.w3.org/2000/svg";
+
+// Lugar que se deja alrededor del dibujo para las etiquetas de los ejes, en píxeles.
+const MARGENES_DEL_GRAFICO = { arriba: 12, derecha: 12, abajo: 28, izquierda: 72 };
+
+// Lo que hace falta para el efecto de pasar el mouse: dónde está cada día en pantalla.
+let escalaDelGrafico = null;
+
+// Igual que crear(), pero para elementos SVG, que necesitan su propio espacio de nombres.
+function crearSvg(etiqueta, atributos = {}, texto = "") {
+    const nuevo = document.createElementNS(ESPACIO_DE_SVG, etiqueta);
+    for (const [nombre, valor] of Object.entries(atributos)) {
+        nuevo.setAttribute(nombre, valor);
+    }
+    nuevo.textContent = texto;
+    return nuevo;
+}
+
+// Pide el historial solo si cambió el día (o si se pide forzarlo, por ejemplo después de operar).
+async function actualizarHistorial(tick, forzar = false) {
+    if (idPartida === null || pidiendoHistorial || (!forzar && tick === tickDelHistorial)) {
+        return;
+    }
+
+    pidiendoHistorial = true;
+    try {
+        ultimoHistorial = await api.historial(idPartida, CONFIGURACION.puntosDelHistorial);
+        tickDelHistorial = tick;
+        dibujarGraficoDeBilletera();
+
+        // Los minigráficos del mercado usan el mismo historial.
+        if (ultimaPartida !== null) {
+            mostrarMercado(ultimaPartida.mundo.activos);
+        }
+    } catch (error) {
+        // El gráfico es secundario: si falla, el resto de la pantalla sigue funcionando.
+        console.warn("No se pudo obtener el historial:", error);
+    } finally {
+        pidiendoHistorial = false;
+    }
+}
+
+function dibujarGraficoDeBilletera() {
+    const svg = elemento("grafico-billetera");
+    const historial = ultimoHistorial;
+    const hayDatos = historial !== null && historial.ticks.length >= 2;
+
+    // En SVG no existe la propiedad .hidden (es solo de HTML): hay que poner o sacar el atributo.
+    svg.toggleAttribute("hidden", !hayDatos);
+    elemento("grafico-vacio").hidden = hayDatos;
+    elemento("grafico-detalle").hidden = !hayDatos;
+    escalaDelGrafico = null;
+
+    if (!hayDatos) {
+        svg.replaceChildren();
+        return;
+    }
+
+    // El dibujo usa el ancho real en pantalla, así el texto no se estira.
+    const ancho = svg.clientWidth || 600;
+    const alto = CONFIGURACION.altoDelGrafico;
+    svg.setAttribute("viewBox", `0 0 ${ancho} ${alto}`);
+
+    const { ticks, valorTotal, valorReal } = historial;
+    const capitalInicial = ultimaPartida?.billetera.capitalInicial ?? valorTotal[0];
+
+    // Rango vertical: todos los valores y el capital inicial, redondeado a valores "lindos" para la grilla.
+    const todos = [...valorTotal, ...valorReal, capitalInicial];
+    const { minimo, maximo, paso } = calcularEscalaRedonda(Math.min(...todos), Math.max(...todos));
+
+    const izquierda = MARGENES_DEL_GRAFICO.izquierda;
+    const derecha = ancho - MARGENES_DEL_GRAFICO.derecha;
+    const arriba = MARGENES_DEL_GRAFICO.arriba;
+    const abajo = alto - MARGENES_DEL_GRAFICO.abajo;
+
+    // Escalas: convierten un día y un valor en pesos a una posición en pantalla.
+    const primerDia = ticks[0];
+    const ultimoDia = ticks[ticks.length - 1];
+    const x = (tick) => izquierda + (tick - primerDia) / (ultimoDia - primerDia) * (derecha - izquierda);
+    const y = (valor) => abajo - (valor - minimo) / (maximo - minimo) * (abajo - arriba);
+
+    const contenido = [];
+
+    // Grilla horizontal: una línea por cada "paso", con su valor a la izquierda.
+    for (let valor = minimo; valor <= maximo + paso / 2; valor += paso) {
+        const altura = y(valor);
+        contenido.push(
+            crearSvg("line", { class: "grilla", x1: izquierda, x2: derecha, y1: altura, y2: altura }),
+            crearSvg("text", { class: "eje", x: izquierda - 8, y: altura, "text-anchor": "end", "dominant-baseline": "middle" },
+                formatearEnMillones(valor)),
+        );
+    }
+
+    // Primer y último día, debajo del dibujo.
+    contenido.push(
+        crearSvg("text", { class: "eje", x: izquierda, y: alto - 6, "text-anchor": "start" }, `Día ${primerDia.toLocaleString("es-AR")}`),
+        crearSvg("text", { class: "eje", x: derecha, y: alto - 6, "text-anchor": "end" }, `Día ${ultimoDia.toLocaleString("es-AR")}`),
+    );
+
+    // Línea punteada con la plata del inicio: lo que está arriba es ganancia, lo de abajo, pérdida.
+    const alturaInicial = y(capitalInicial);
+    contenido.push(crearSvg("line", { class: "linea-inicial", x1: izquierda, x2: derecha, y1: alturaInicial, y2: alturaInicial }));
+
+    // Primero la real y después la nominal, para que la nominal quede encima si se cruzan.
+    contenido.push(
+        crearPolilinea(ticks, valorReal, x, y, "linea-real"),
+        crearPolilinea(ticks, valorTotal, x, y, "linea-nominal"),
+    );
+
+    // Elementos del efecto de pasar el mouse: empiezan ocultos.
+    const guia = crearSvg("line", { class: "guia", y1: arriba, y2: abajo, visibility: "hidden" });
+    const marcadorNominal = crearSvg("circle", { class: "marcador linea-nominal", r: 4.5, visibility: "hidden" });
+    const marcadorReal = crearSvg("circle", { class: "marcador linea-real", r: 4.5, visibility: "hidden" });
+    contenido.push(guia, marcadorReal, marcadorNominal);
+
+    svg.replaceChildren(...contenido);
+    escalaDelGrafico = { x, y, guia, marcadorNominal, marcadorReal };
+    mostrarDetalleDelGrafico(null);
+}
+
+// Elige un paso redondo (1, 2, 2,5 o 5 por una potencia de 10) para que la grilla tenga unas 4 líneas,
+// y estira el rango hasta múltiplos de ese paso. Ejemplo: de 883.620 a 1.320.000 → de 800.000 a 1.400.000, de a 200.000.
+function calcularEscalaRedonda(minimoReal, maximoReal) {
+    // Al menos un 2 % del valor: si no, con la plata quieta la grilla mostraría diferencias de centavos.
+    const rango = Math.max(maximoReal - minimoReal, maximoReal * 0.02);
+    const pasoAproximado = rango / 3;
+    const potencia = 10 ** Math.floor(Math.log10(pasoAproximado));
+    const paso = [1, 2, 2.5, 5, 10].map((m) => m * potencia).find((p) => p >= pasoAproximado);
+
+    return {
+        minimo: Math.floor(minimoReal / paso) * paso,
+        maximo: Math.ceil(maximoReal / paso) * paso,
+        paso,
+    };
+}
+
+// "$1,2 M", "$0,85 M": todos los valores del eje en la misma unidad, para poder compararlos de un vistazo.
+function formatearEnMillones(valor) {
+    return `$${(valor / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 3 })} M`;
+}
+
+// Une los puntos (día, valor) en una sola línea.
+function crearPolilinea(ticks, valores, x, y, clase) {
+    const puntos = ticks.map((tick, i) => `${x(tick).toFixed(1)},${y(valores[i]).toFixed(1)}`).join(" ");
+    return crearSvg("polyline", { class: clase, points: puntos });
+}
+
+// Muestra los valores de un día debajo del gráfico. Sin día, muestra el último.
+function mostrarDetalleDelGrafico(indice) {
+    const { ticks, valorTotal, valorReal } = ultimoHistorial;
+    const i = indice ?? ticks.length - 1;
+
+    elemento("grafico-detalle").textContent =
+        `Día ${ticks[i].toLocaleString("es-AR")}: ${formatoPesos.format(valorTotal[i])} en pesos, `
+        + `que equivalen a ${formatoPesos.format(valorReal[i])} de cuando empezaste.`;
+}
+
+// Al pasar el mouse (o el dedo), busca el día más cercano y lo marca.
+function seguirPunteroEnElGrafico(evento) {
+    if (escalaDelGrafico === null) {
+        return;
+    }
+
+    const { x, y, guia, marcadorNominal, marcadorReal } = escalaDelGrafico;
+    const { ticks, valorTotal, valorReal } = ultimoHistorial;
+
+    // Como el viewBox mide lo mismo que el gráfico en pantalla, offsetX ya está en las unidades del dibujo.
+    let masCercano = 0;
+    for (let i = 1; i < ticks.length; i++) {
+        if (Math.abs(x(ticks[i]) - evento.offsetX) < Math.abs(x(ticks[masCercano]) - evento.offsetX)) {
+            masCercano = i;
+        }
+    }
+
+    const posicion = x(ticks[masCercano]);
+    guia.setAttribute("x1", posicion);
+    guia.setAttribute("x2", posicion);
+    marcadorNominal.setAttribute("cx", posicion);
+    marcadorNominal.setAttribute("cy", y(valorTotal[masCercano]));
+    marcadorReal.setAttribute("cx", posicion);
+    marcadorReal.setAttribute("cy", y(valorReal[masCercano]));
+
+    for (const parte of [guia, marcadorNominal, marcadorReal]) {
+        parte.setAttribute("visibility", "visible");
+    }
+
+    mostrarDetalleDelGrafico(masCercano);
+}
+
+function soltarPunteroDelGrafico() {
+    if (escalaDelGrafico === null) {
+        return;
+    }
+
+    for (const parte of [escalaDelGrafico.guia, escalaDelGrafico.marcadorNominal, escalaDelGrafico.marcadorReal]) {
+        parte.setAttribute("visibility", "hidden");
+    }
+
+    mostrarDetalleDelGrafico(null);
+}
+
+
+
+// ----- 5c. Minigráficos del mercado --------------------------------------
+// Una línea chiquita por activo, con la variación desde el inicio.
+
+// Tamaño de cada minigráfico, en píxeles.
+const ANCHO_DEL_MINIGRAFICO = 96;
+const ALTO_DEL_MINIGRAFICO = 28;
+
+// Todos los minigráficos usan la MISMA escala: la mayor variación de cualquier activo.
+// Si cada uno usara la suya, el plazo fijo se vería tan movido como Bitcoin y el gráfico mentiría.
+function calcularEscalaDeMinigraficos() {
+    if (ultimoHistorial === null || ultimoHistorial.ticks.length < 2) {
+        return null;
+    }
+
+    let mayorVariacion = 0;
+    for (const serie of ultimoHistorial.activos) {
+        const precioInicial = serie.precios[0];
+        for (const precio of serie.precios) {
+            mayorVariacion = Math.max(mayorVariacion, Math.abs(precio / precioInicial - 1));
+        }
+    }
+
+    // Si nada se movió todavía, se usa un 1 % para no dividir por cero.
+    return mayorVariacion || 0.01;
+}
+
+function crearMinigrafico(nombreDelActivo, escala) {
+    const serie = ultimoHistorial?.activos.find((s) => s.nombre === nombreDelActivo);
+    if (escala === null || serie === undefined) {
+        return crear("span");
+    }
+
+    const ancho = ANCHO_DEL_MINIGRAFICO;
+    const alto = ALTO_DEL_MINIGRAFICO;
+    const medio = alto / 2;   // altura del precio inicial (variación 0 %)
+    const { precios } = serie;
+    const precioInicial = precios[0];
+
+    // Variación de cada día respecto del inicio, convertida a altura: arriba sube, abajo baja.
+    const puntos = precios.map((precio, i) => {
+        const x = i / (precios.length - 1) * ancho;
+        const y = medio - (precio / precioInicial - 1) / escala * (medio - 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+
+    const variacionFinal = precios[precios.length - 1] / precioInicial - 1;
+
+    // aria-hidden: el porcentaje de la columna anterior ya dice lo mismo para los lectores de pantalla.
+    const svg = crearSvg("svg", { class: "minigrafico", viewBox: `0 0 ${ancho} ${alto}`, width: ancho, height: alto, "aria-hidden": "true" });
+    svg.append(
+        crearSvg("line", { class: "minigrafico-base", x1: 0, x2: ancho, y1: medio, y2: medio }),
+        crearSvg("polyline", { points: puntos, class: claseSegunSigno(variacionFinal) }),
+    );
+    return svg;
+}
+
+
 // Muestra cuánto costaría la operación antes de hacerla, comisión incluida.
 function actualizarEstimacion() {
     const nombre = elemento("selector-activo").value;
@@ -351,9 +635,16 @@ function actualizarEstimacion() {
 
     const importe = activo.precio * cantidad;
     const comision = importe * CONFIGURACION.tasaDeComision;
-    elemento("estimacion").textContent =
-        `Comprar costaría unos ${formatoPesos.format(importe + comision)}, `
-        + `de los cuales ${formatoPesosConCentavos.format(comision)} son comisión.`;
+    const tenencia = ultimaPartida.billetera.posiciones.find((p) => p.activo === activo.nombre)?.cantidad ?? 0;
+
+    // No sabemos qué botón va a tocar el jugador, así que se muestran los dos casos.
+    // La comisión se suma al comprar y se resta al vender.
+    let texto = `Comprar te costaría unos ${formatoPesos.format(importe + comision)}`;
+    if (tenencia > 0) {
+        texto += `; vender te daría unos ${formatoPesos.format(importe - comision)} (tenés ${formatearCantidad(tenencia)})`;
+    }
+    texto += `. Comisión: ${formatoPesosConCentavos.format(comision)}.`;
+    elemento("estimacion").textContent = texto;
 }
 
 
@@ -421,6 +712,9 @@ async function operar(evento) {
         mostrarPartida(partida);
         elemento("cantidad").value = "";
         actualizarEstimacion();
+
+        // El día no cambió, pero la billetera sí (al menos por la comisión): se redibuja el gráfico.
+        actualizarHistorial(partida.mundo.tick, true);
 
         const verbo = tipo === "comprar" ? "Compraste" : "Vendiste";
         mostrarMensajeDeOperacion(`${verbo} ${formatearCantidad(cantidad)} de ${activo}.`, false);
@@ -494,6 +788,10 @@ elemento("formulario-operacion").addEventListener("submit", operar);
 elemento("selector-activo").addEventListener("change", actualizarEstimacion);
 elemento("cantidad").addEventListener("input", actualizarEstimacion);
 elemento("cuerpo-mercado").addEventListener("click", elegirActivoDesdeElMercado);
+
+elemento("grafico-billetera").addEventListener("pointermove", seguirPunteroEnElGrafico);
+elemento("grafico-billetera").addEventListener("pointerleave", soltarPunteroDelGrafico);
+window.addEventListener("resize", dibujarGraficoDeBilletera);
 
 retomarPartidaGuardada();
 setInterval(actualizar, CONFIGURACION.intervaloDeActualizacionMs);

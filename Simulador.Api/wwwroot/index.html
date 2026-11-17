@@ -53,6 +53,22 @@
                 </p>
             </section>
 
+            <!-- Evolución de la plata del jugador: en pesos y en poder de compra. -->
+            <section class="panel grafico" aria-labelledby="titulo-evolucion">
+                <div class="grafico-encabezado">
+                    <h2 id="titulo-evolucion">Cómo evolucionó tu plata</h2>
+                    <ul class="leyenda">
+                        <li><span class="muestra muestra-nominal"></span>En pesos</li>
+                        <li><span class="muestra muestra-real"></span>En poder de compra</li>
+                        <li><span class="muestra muestra-inicial"></span>Con lo que empezaste</li>
+                    </ul>
+                </div>
+                <svg class="grafico-svg" id="grafico-billetera" role="img"
+                     aria-label="Gráfico de la evolución de tu plata, en pesos y en poder de compra" hidden></svg>
+                <p class="detalle" id="grafico-detalle" hidden></p>
+                <p class="detalle" id="grafico-vacio">El gráfico aparece cuando pasa el primer día.</p>
+            </section>
+
             <div class="columnas">
                 <section class="panel" aria-labelledby="titulo-mercado">
                     <h2 id="titulo-mercado">Mercado</h2>
@@ -64,12 +80,13 @@
                                     <th scope="col" class="col-tipo">Tipo</th>
                                     <th scope="col" class="numero">Precio</th>
                                     <th scope="col" class="numero">Desde el inicio</th>
+                                    <th scope="col" class="col-minigrafico">Evolución</th>
                                 </tr>
                             </thead>
                             <tbody id="cuerpo-mercado"></tbody>
                         </table>
                     </div>
-                    <p class="detalle">Tocá el nombre de un activo para elegirlo en el formulario.</p>
+                    <p class="detalle">Tocá el nombre de un activo para elegirlo en el formulario. Todas las líneas de "Evolución" usan la misma escala: una línea casi plana es una inversión estable.</p>
                 </section>
 
                 <div class="lateral">

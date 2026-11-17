@@ -12,6 +12,9 @@ public class Mundo
     private readonly Random _azar;
     private readonly List<RegistroDeEvento> _ultimosEventos = new();
 
+    // Un punto por tick, desde el tick 0. Sirve para dibujar gráficos.
+    private readonly List<PuntoDelHistorial> _historial = new();
+
     // Nombre del factor que representa la inflación, o null si el mundo no tiene uno.
     private readonly string? _factorDeInflacion;
 
@@ -25,6 +28,9 @@ public class Mundo
 
     // Últimos eventos ocurridos, del más viejo al más nuevo.
     public IReadOnlyList<RegistroDeEvento> UltimosEventos => _ultimosEventos;
+
+    // Precios e índice de precios de cada día, del más viejo al más nuevo.
+    public IReadOnlyList<PuntoDelHistorial> Historial => _historial;
 
     // Cuánto subieron los precios desde el inicio (1,25 = subieron 25%).
     // Sirve para calcular el valor real de una cartera, es decir, su poder de compra.
@@ -48,6 +54,7 @@ public class Mundo
         _factorDeInflacion = factorDeInflacion;
 
         ValidarConfiguracion();
+        RegistrarPuntoDelHistorial();   // el día 0, con los precios iniciales
     }
 
     // Avanza la simulación la cantidad de ticks indicada.
@@ -82,6 +89,7 @@ public class Mundo
 
             TickActual++;
             RegistrarEventos();
+            RegistrarPuntoDelHistorial();
         }
     }
 
@@ -101,6 +109,13 @@ public class Mundo
         {
             _ultimosEventos.RemoveRange(0, _ultimosEventos.Count - MaximoDeEventosGuardados);
         }
+    }
+
+    // Guarda los precios y el índice del tick que acaba de terminar.
+    private void RegistrarPuntoDelHistorial()
+    {
+        var precios = _activos.Select(activo => activo.PrecioActual).ToArray();
+        _historial.Add(new PuntoDelHistorial(TickActual, IndiceDePrecios, precios));
     }
 
     // Verifica que no haya nombres repetidos, que cada activo dependa solo de factores existentes

@@ -71,7 +71,10 @@ public class RelojDeSimulacion
                 .Reverse()
                 .ToList();
 
-            return new EstadoDelMundo(Mundo.TickActual, Velocidad, EstaPausado, factores, activos, ultimosEventos);
+            var inflacionAcumulada = (Mundo.IndiceDePrecios - 1) * 100;
+
+            return new EstadoDelMundo(Mundo.TickActual, Velocidad, EstaPausado, inflacionAcumulada,
+                factores, activos, ultimosEventos);
 
         }
 

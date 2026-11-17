@@ -10,6 +10,10 @@ namespace Simulador.Api.Controllers;
 [Route("partidas")]
 public class PartidasController : ControllerBase
 {
+    // Límites del parámetro "puntos" del historial.
+    private const int MinimoDePuntos = 2;
+    private const int MaximoDePuntos = 1000;
+
     private readonly GestorDePartidas _gestor;
 
     public PartidasController(GestorDePartidas gestor)
@@ -37,6 +41,28 @@ public class PartidasController : ControllerBase
         }
 
         return ArmarRespuesta(partida);
+    }
+
+    // Devuelve la evolución de la partida para dibujar gráficos.
+    // "puntos" es la cantidad máxima de días que se devuelven, por ejemplo /historial?puntos=300.
+    [HttpGet("{id:guid}/historial")]
+    public ActionResult<HistorialDePartida> ObtenerHistorial(Guid id, [FromQuery] int puntos = 300)
+    {
+        if (puntos < MinimoDePuntos || puntos > MaximoDePuntos)
+        {
+            return Problem(
+                title: "Pedido inválido",
+                detail: $"La cantidad de puntos debe estar entre {MinimoDePuntos} y {MaximoDePuntos}.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var partida = _gestor.Obtener(id);
+        if (partida is null)
+        {
+            return NotFound();
+        }
+
+        return partida.ObtenerHistorial(puntos);
     }
 
     [HttpPost("{id:guid}/pausar")]

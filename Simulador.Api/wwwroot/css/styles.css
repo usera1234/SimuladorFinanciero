@@ -13,6 +13,8 @@
     --ganancia: #2F7A4D;
     --perdida: #B23B3B;
     --borde: #D5DBD6;
+    --linea-nominal: #2F7DB3;
+    --linea-real: #C2661B;
     --radio: 6px;
     --espacio: 1.5rem;
 }
@@ -29,6 +31,8 @@
         --ganancia: #5CB884;
         --perdida: #E07070;
         --borde: #34404B;
+        --linea-nominal: #3D96D4;
+        --linea-real: #C7742B;
     }
 }
 
@@ -234,6 +238,145 @@ button {
     color: var(--tinta-suave);
 }
 
+/* ---------- Gráfico de la billetera ---------- */
+
+.grafico {
+    margin-bottom: var(--espacio);
+}
+
+.grafico-encabezado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0 1.5rem;
+}
+
+.leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    list-style: none;
+    font-size: 0.875rem;
+    color: var(--tinta-suave);
+}
+
+    .leyenda li {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+/* Muestra de cada línea en la leyenda: un trazo del mismo color y estilo. */
+.muestra {
+    width: 1.25rem;
+    border-top: 2px solid;
+}
+
+.muestra-nominal {
+    border-color: var(--linea-nominal);
+}
+
+.muestra-real {
+    border-color: var(--linea-real);
+}
+
+.muestra-inicial {
+    border-top: 2px dashed var(--tinta-suave);
+}
+
+.grafico-svg {
+    display: block;
+    width: 100%;
+    height: 240px; /* Igual que CONFIGURACION.altoDelGrafico en app.js. */
+    touch-action: pan-y; /* En el celular, deslizar el dedo de costado recorre el gráfico. */
+}
+
+    .grafico-svg .grilla {
+        stroke: var(--borde);
+        stroke-width: 1;
+    }
+
+    .grafico-svg .eje {
+        fill: var(--tinta-suave);
+        font-size: 12px;
+    }
+
+    .grafico-svg polyline {
+        fill: none;
+        stroke-width: 2;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+    }
+
+    .grafico-svg .linea-nominal {
+        stroke: var(--linea-nominal);
+    }
+
+    .grafico-svg .linea-real {
+        stroke: var(--linea-real);
+    }
+
+    .grafico-svg .linea-inicial {
+        stroke: var(--tinta-suave);
+        stroke-width: 1;
+        stroke-dasharray: 4 4;
+    }
+
+    .grafico-svg .guia {
+        stroke: var(--tinta-suave);
+        stroke-width: 1;
+    }
+
+    /* Los puntos del día elegido: relleno del color de la línea y un borde del color del fondo. */
+    .grafico-svg .marcador {
+        stroke: var(--superficie);
+        stroke-width: 2;
+    }
+
+        .grafico-svg .marcador.linea-nominal {
+            fill: var(--linea-nominal);
+        }
+
+        .grafico-svg .marcador.linea-real {
+            fill: var(--linea-real);
+        }
+
+/* ---------- Minigráficos del mercado ---------- */
+
+.tabla td.col-minigrafico {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
+.minigrafico {
+    display: block;
+    overflow: visible;
+}
+
+    .minigrafico polyline {
+        fill: none;
+        stroke: var(--tinta-suave);
+        stroke-width: 1.5;
+        stroke-linejoin: round;
+    }
+
+        .minigrafico polyline.ganancia {
+            stroke: var(--ganancia);
+        }
+
+        .minigrafico polyline.perdida {
+            stroke: var(--perdida);
+        }
+
+/* Línea del precio inicial: lo que queda arriba subió, lo de abajo bajó. */
+.minigrafico-base {
+    stroke: var(--borde);
+    stroke-dasharray: 2 2;
+}
+
 /* ---------- Tablas ---------- */
 
 /* Las tablas anchas se desplazan dentro de su contenedor en lugar de ensanchar la página. */
@@ -402,6 +545,13 @@ button {
 
     .inicio {
         margin: 2rem auto;
+    }
+}
+
+/* En celulares muy angostos, el minigráfico se oculta para que el precio entre sin desplazar. */
+@media (max-width: 26rem) {
+    .col-minigrafico {
+        display: none;
     }
 }
 
