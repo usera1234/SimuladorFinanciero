@@ -34,6 +34,13 @@ const CONFIGURACION = {
 
     // Alto del gráfico de la billetera, en píxeles.
     altoDelGrafico: 240,
+
+    // Noticias que se muestran debajo de cada empresa en el mercado.
+    noticiasPorEmpresa: 3,
+
+    // Cuánto dura en pantalla una notificación de evento, y cuántas se ven a la vez como máximo.
+    duracionDeNotificacionMs: 7000,
+    notificacionesVisibles: 3,
 };
 
 const NOMBRES_DE_TIPOS = {
@@ -86,6 +93,9 @@ const api = {
     comprar: (id, activo, cantidad) => pedir(`/partidas/${id}/comprar`, "POST", { activo, cantidad }),
     vender: (id, activo, cantidad) => pedir(`/partidas/${id}/vender`, "POST", { activo, cantidad }),
     historial: (id, puntos) => pedir(`/partidas/${id}/historial?puntos=${puntos}`),
+    constituirPlazoFijo: (id, monto, dias) => pedir(`/partidas/${id}/plazos-fijos`, "POST", { monto, dias }),
+    cobrarPlazoFijo: (id, plazoFijoId) => pedir(`/partidas/${id}/plazos-fijos/${plazoFijoId}/cobrar`, "POST"),
+    renovarPlazoFijo: (id, plazoFijoId) => pedir(`/partidas/${id}/plazos-fijos/${plazoFijoId}/renovar`, "POST"),
 };
 
 
@@ -137,9 +147,11 @@ let idPartida = null;        // Partida en juego, o null.
 let ultimaPartida = null;    // Último estado recibido de la API.
 let consultando = false;     // Evita superponer consultas si el servidor tarda.
 let selectorPreparado = false;
+let selectorDePlazosPreparado = false;
 let ultimoHistorial = null;  // Último historial recibido, para redibujar el gráfico sin volver a pedirlo.
 let tickDelHistorial = -1;   // Día del último historial pedido: si no cambió, no se vuelve a pedir.
 let pidiendoHistorial = false;
+let ultimoTickNotificado = null;  // Día del último evento ya notificado. null = todavía no se tomó referencia.
 
 function elemento(id) {
     return document.getElementById(id);
@@ -154,8 +166,10 @@ function olvidarPartida() {
     idPartida = null;
     ultimaPartida = null;
     selectorPreparado = false;
+    selectorDePlazosPreparado = false;
     ultimoHistorial = null;
     tickDelHistorial = -1;
+    ultimoTickNotificado = null;
     dibujarGraficoDeBilletera();
     localStorage.removeItem(CONFIGURACION.claveDePartidaGuardada);
     mostrarPantalla(false);
@@ -175,12 +189,16 @@ function mostrarError(mensaje) {
     caja.hidden = mensaje === null;
 }
 
-// Resultado de una compra o venta. No se borra con las consultas periódicas.
-function mostrarMensajeDeOperacion(mensaje, esError) {
-    const caja = elemento("mensaje-operacion");
+// Muestra un aviso en una caja. No se borra con las consultas periódicas.
+function mostrarAviso(caja, mensaje, esError) {
     caja.textContent = mensaje;
     caja.classList.toggle("es-error", esError);
     caja.hidden = false;
+}
+
+// Resultado de una compra o venta.
+function mostrarMensajeDeOperacion(mensaje, esError) {
+    mostrarAviso(elemento("mensaje-operacion"), mensaje, esError);
 }
 
 function manejarError(error) {
@@ -207,15 +225,19 @@ function crear(etiqueta, texto = "", clase = "") {
 }
 
 function mostrarPartida(partida) {
+    const ultimaPartidaAnterior = ultimaPartida;
     ultimaPartida = partida;
     const { mundo, billetera } = partida;
 
     mostrarTiempo(mundo);
     mostrarPatrimonio(mundo, billetera);
+    notificarEventosNuevos(mundo, billetera, ultimaPartidaAnterior);
     mostrarMercado(mundo.activos);
     prepararSelectorDeActivos(mundo.activos);
-    mostrarBilletera(billetera);
-    mostrarNoticias(mundo.ultimosEventos);
+    mostrarBilletera(billetera, mundo.tick);
+    mostrarOpcionesDePlazoFijo(billetera);
+    actualizarEstimacionDePlazoFijo();
+    mostrarVencimiento(billetera.plazosFijos);
     mostrarEconomia(mundo.factores);
     mostrarOperaciones(billetera.ultimasOperaciones);
     actualizarEstimacion();
@@ -271,10 +293,50 @@ function mostrarMercado(activos) {
         const celdaMinigrafico = crear("td", "", "col-minigrafico");
         celdaMinigrafico.append(crearMinigrafico(activo.nombre, escala));
         fila.append(celdaMinigrafico);
-        return fila;
+
+        // Si la empresa tuvo noticias, van en una fila extra debajo de la suya.
+        const filaDeNoticias = crearFilaDeNoticias(activo.nombre, ultimaPartida.mundo.ultimosEventos);
+        if (filaDeNoticias === null) {
+            return [fila];
+        }
+
+        fila.classList.add("con-noticias");
+        return [fila, filaDeNoticias];
     });
 
-    elemento("cuerpo-mercado").replaceChildren(...filas);
+    // flat(): cada activo devolvió una o dos filas; se juntan todas en una sola lista.
+    elemento("cuerpo-mercado").replaceChildren(...filas.flat());
+}
+
+// Últimas noticias de una empresa, en una fila que ocupa todo el ancho de la tabla. null si no tuvo ninguna.
+function crearFilaDeNoticias(nombreDelActivo, eventos) {
+    // La API manda los eventos del más nuevo al más viejo, así que los primeros son los más recientes.
+    const propios = eventos
+        .filter((evento) => evento.empresa === nombreDelActivo)
+        .slice(0, CONFIGURACION.noticiasPorEmpresa);
+
+    if (propios.length === 0) {
+        return null;
+    }
+
+    const lista = crear("ul", "", "noticias");
+    for (const evento of propios) {
+        const item = crear("li");
+        item.append(
+            crear("span", `Día ${evento.tick.toLocaleString("es-AR")}`, "cuando-noticia"),
+            `${evento.evento} `,
+            crear("strong", formatearPorcentaje(evento.impactoPorcentual), claseSegunSigno(evento.impactoPorcentual)),
+        );
+        lista.append(item);
+    }
+
+    const celda = crear("td");
+    celda.colSpan = 5;   // tantas columnas como tiene la tabla
+    celda.append(lista);
+
+    const fila = crear("tr", "", "fila-noticias");
+    fila.append(celda);
+    return fila;
 }
 
 // Las opciones del formulario se arman una sola vez: los activos no cambian durante la partida.
@@ -293,7 +355,7 @@ function prepararSelectorDeActivos(activos) {
     selectorPreparado = true;
 }
 
-function mostrarBilletera(billetera) {
+function mostrarBilletera(billetera, tick) {
     elemento("efectivo").textContent = formatoPesosConCentavos.format(billetera.efectivo);
 
     const filas = billetera.posiciones.map((posicion) => {
@@ -308,23 +370,30 @@ function mostrarBilletera(billetera) {
 
     elemento("cuerpo-posiciones").replaceChildren(...filas);
     elemento("tabla-posiciones").hidden = filas.length === 0;
-    elemento("billetera-vacia").hidden = filas.length > 0;
-}
 
-function mostrarNoticias(eventos) {
-    const items = eventos.map((evento) => {
-        const item = document.createElement("li");
-        const impacto = crear("strong", formatearPorcentaje(evento.impactoPorcentual), claseSegunSigno(evento.impactoPorcentual));
+    // Plazos fijos sin cobrar: cuánto valen hoy y cuándo vencen.
+    const plazos = billetera.plazosFijos.map((plazo) => {
+        const faltan = plazo.tickDeVencimiento - tick;
+        const cuando = plazo.vencido ? "Venció" : `Vence el día ${plazo.tickDeVencimiento.toLocaleString("es-AR")} (faltan ${faltan})`;
+
+        const item = crear("li");
         item.append(
-            crear("span", `Día ${evento.tick.toLocaleString("es-AR")}`, "cuando"),
-            `${evento.empresa}: ${evento.evento} `,
-            impacto,
+            crear("span", cuando, "cuando"),
+            `${formatoPesos.format(plazo.capital)} a ${plazo.dias} días al ${formatearTasa(plazo.tasaNominalAnual)}: `
+            + `hoy vale ${formatoPesos.format(plazo.capital + plazo.interesAcumulado)}, `
+            + `al vencer ${formatoPesos.format(plazo.valorAlVencer)}`,
         );
         return item;
     });
 
-    elemento("lista-noticias").replaceChildren(...items);
-    elemento("noticias-vacias").hidden = items.length > 0;
+    elemento("lista-plazos-fijos").replaceChildren(...plazos);
+    elemento("titulo-plazos-activos").hidden = plazos.length === 0;
+    elemento("billetera-vacia").hidden = filas.length > 0 || plazos.length > 0;
+}
+
+// "20 % anual". La API manda la tasa como proporción (0,2).
+function formatearTasa(tasa) {
+    return `${(tasa * 100).toLocaleString("es-AR", { maximumFractionDigits: 2 })} % anual`;
 }
 
 function mostrarEconomia(factores) {
@@ -341,9 +410,7 @@ function mostrarEconomia(factores) {
 
 function mostrarOperaciones(operaciones) {
     const items = operaciones.map((operacion) => {
-        const verbo = operacion.tipo === "Compra" ? "Compraste" : "Vendiste";
-        const texto = `${verbo} ${formatearCantidad(operacion.cantidad)} de ${operacion.activo} a ${formatearPrecio(operacion.precio)} `
-            + `(comisión ${formatoPesosConCentavos.format(operacion.comision)})`;
+        const texto = describirOperacion(operacion);
 
         const item = document.createElement("li");
         item.append(crear("span", `Día ${operacion.tick.toLocaleString("es-AR")}`, "cuando"), texto);
@@ -352,6 +419,81 @@ function mostrarOperaciones(operaciones) {
 
     elemento("lista-operaciones").replaceChildren(...items);
     elemento("operaciones-vacias").hidden = items.length > 0;
+}
+
+
+// ----- 5a. Notificaciones de eventos --------------------------------------
+
+// Muestra una notificación por cada evento nuevo desde la última consulta.
+function notificarEventosNuevos(mundo, billetera, partidaAnterior) {
+    const eventos = mundo.ultimosEventos;   // del más nuevo al más viejo
+    const tickMasNuevo = eventos.length > 0 ? eventos[0].tick : 0;
+
+    // La primera vez (partida nueva o retomada) solo se toma referencia: no se avisa lo que ya pasó.
+    if (ultimoTickNotificado === null) {
+        ultimoTickNotificado = tickMasNuevo;
+        return;
+    }
+
+    const nuevos = eventos.filter((evento) => evento.tick > ultimoTickNotificado);
+    if (nuevos.length === 0) {
+        return;
+    }
+    ultimoTickNotificado = tickMasNuevo;
+
+    // Si la velocidad bajó en esta consulta, fue el reloj frenando por un evento de una empresa tuya.
+    const velocidadAnterior = partidaAnterior?.mundo.velocidad ?? mundo.velocidad;
+    const seFreno = mundo.velocidad < velocidadAnterior;
+
+    // Del más viejo al más nuevo, para que el más reciente quede abajo de todo.
+    for (const evento of [...nuevos].reverse()) {
+        const tenesAcciones = billetera.posiciones.some((p) => p.activo === evento.empresa);
+        mostrarNotificacion(evento, tenesAcciones, tenesAcciones && seFreno);
+    }
+}
+
+function mostrarNotificacion(evento, tenesAcciones, seFreno) {
+    const caja = elemento("notificaciones");
+
+    const notificacion = crear("div", "", `notificacion ${evento.impactoPorcentual >= 0 ? "es-suba" : "es-baja"}`);
+    if (tenesAcciones) {
+        notificacion.classList.add("es-tuya");
+    }
+
+    const titulo = crear("p", "", "notificacion-titulo");
+    titulo.append(
+        crear("strong", evento.empresa),
+        ` · Día ${evento.tick.toLocaleString("es-AR")}`,
+    );
+
+    const texto = crear("p", "", "notificacion-texto");
+    texto.append(
+        `${evento.evento} `,
+        crear("strong", formatearPorcentaje(evento.impactoPorcentual), claseSegunSigno(evento.impactoPorcentual)),
+    );
+
+    const cerrar = crear("button", "×", "notificacion-cerrar");
+    cerrar.type = "button";
+    cerrar.setAttribute("aria-label", "Cerrar notificación");
+    cerrar.addEventListener("click", () => notificacion.remove());
+
+    notificacion.append(cerrar, titulo, texto);
+
+    if (tenesAcciones) {
+        notificacion.append(crear("p",
+            seFreno ? "Tenés acciones de esta empresa: bajamos la velocidad a ×1 para que puedas reaccionar."
+                : "Tenés acciones de esta empresa.",
+            "notificacion-aviso"));
+    }
+
+    caja.append(notificacion);
+
+    // Si hay demasiadas, se van las más viejas.
+    while (caja.children.length > CONFIGURACION.notificacionesVisibles) {
+        caja.firstElementChild.remove();
+    }
+
+    setTimeout(() => notificacion.remove(), CONFIGURACION.duracionDeNotificacionMs);
 }
 
 
@@ -618,6 +760,148 @@ function crearMinigrafico(nombreDelActivo, escala) {
 }
 
 
+// Texto de una operación según su tipo.
+function describirOperacion(operacion) {
+    switch (operacion.tipo) {
+        case "PlazoFijo":
+            return `Depositaste ${formatoPesos.format(operacion.total)} en un ${operacion.activo.toLowerCase()}`;
+        case "CobroDePlazoFijo":
+            return `Cobraste ${formatoPesos.format(operacion.total)} de un ${operacion.activo.toLowerCase()} `
+                + `(${formatoPesosConCentavos.format(operacion.total - operacion.cantidad)} de interés)`;
+        default: {
+            const verbo = operacion.tipo === "Compra" ? "Compraste" : "Vendiste";
+            return `${verbo} ${formatearCantidad(operacion.cantidad)} de ${operacion.activo} a ${formatearPrecio(operacion.precio)} `
+                + `(comisión ${formatoPesosConCentavos.format(operacion.comision)})`;
+        }
+    }
+}
+
+
+// ----- 5d. Plazo fijo ----------------------------------------------------
+
+// Las opciones de plazo vienen de la API. Se crean una sola vez, pero su texto se actualiza en cada consulta,
+// porque las tasas cambian con la inflación del último año.
+function mostrarOpcionesDePlazoFijo(billetera) {
+    const selector = elemento("dias-plazo-fijo");
+    const opciones = billetera.opcionesDePlazoFijo;
+
+    if (!selectorDePlazosPreparado) {
+        selector.replaceChildren(...opciones.map((opcion) => {
+            const elementoOpcion = crear("option");
+            elementoOpcion.value = String(opcion.dias);
+            return elementoOpcion;
+        }));
+        selectorDePlazosPreparado = true;
+    }
+
+    opciones.forEach((opcion, i) => {
+        selector.options[i].textContent = `${opcion.dias} días · ${formatearTasa(opcion.tasaNominalAnual)}`;
+    });
+
+    const inflacion = billetera.inflacionDelUltimoAnioPorcentual.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+    elemento("referencia-plazo-fijo").textContent =
+        `Las tasas se calculan con la inflación del último año (${inflacion} %) más un pequeño premio según el plazo.`;
+}
+
+// Cuánto se cobraría al vencer, antes de constituirlo. Misma cuenta que el servidor: interés simple.
+function actualizarEstimacionDePlazoFijo() {
+    const monto = leerNumero("monto-plazo-fijo");
+    const dias = Number(elemento("dias-plazo-fijo").value);
+    const opcion = ultimaPartida?.billetera.opcionesDePlazoFijo.find((o) => o.dias === dias);
+
+    if (!opcion || !(monto > 0)) {
+        elemento("estimacion-plazo-fijo").textContent = "";
+        return;
+    }
+
+    const interes = Math.round(monto * opcion.tasaNominalAnual * dias / 365 * 100) / 100;
+    const vencimiento = ultimaPartida.mundo.tick + dias;
+    elemento("estimacion-plazo-fijo").textContent =
+        `El día ${vencimiento.toLocaleString("es-AR")} cobrarías ${formatoPesos.format(monto + interes)} `
+        + `(${formatoPesosConCentavos.format(interes)} de interés). Hasta entonces, esa plata no se puede usar.`;
+}
+
+async function constituirPlazoFijo(evento) {
+    evento.preventDefault();
+
+    const monto = leerNumero("monto-plazo-fijo");
+    const dias = Number(elemento("dias-plazo-fijo").value);
+    const mensaje = elemento("mensaje-plazo-fijo");
+
+    if (!(monto > 0)) {
+        mostrarAviso(mensaje, "Ingresá un monto mayor que cero.", true);
+        return;
+    }
+
+    try {
+        const partida = await api.constituirPlazoFijo(idPartida, monto, dias);
+        mostrarPartida(partida);
+        elemento("monto-plazo-fijo").value = "";
+        actualizarEstimacionDePlazoFijo();
+        actualizarHistorial(partida.mundo.tick, true);
+        mostrarAviso(mensaje, `Depositaste ${formatoPesos.format(monto)} a ${dias} días.`, false);
+    } catch (error) {
+        if (error instanceof ErrorDeApi && error.estado === 404) {
+            manejarError(error);
+            return;
+        }
+        mostrarAviso(mensaje, error.message, true);
+    }
+}
+
+// Si hay un plazo fijo vencido, abre la ventana para decidir. El juego ya está en pausa (lo pausó el servidor).
+function mostrarVencimiento(plazosFijos) {
+    const dialogo = elemento("dialogo-vencimiento");
+    const vencido = plazosFijos.find((plazo) => plazo.vencido);
+
+    if (!vencido) {
+        if (dialogo.open) {
+            dialogo.close();
+        }
+        return;
+    }
+
+    // Si ya está abierto por este mismo plazo, no se toca (para no borrar un mensaje de error).
+    if (dialogo.open && dialogo.dataset.plazo === String(vencido.id)) {
+        return;
+    }
+
+    dialogo.dataset.plazo = String(vencido.id);
+    elemento("texto-vencimiento").textContent =
+        `Depositaste ${formatoPesos.format(vencido.capital)} a ${vencido.dias} días al ${formatearTasa(vencido.tasaNominalAnual)}. `
+        + `Ahora tenés ${formatoPesos.format(vencido.valorAlVencer)}: `
+        + `${formatoPesosConCentavos.format(vencido.valorAlVencer - vencido.capital)} de interés. ¿Qué querés hacer?`;
+    // Al renovar se usa la tasa de hoy, que puede ser distinta de la que tenía.
+    const tasaDeHoy = ultimaPartida.billetera.opcionesDePlazoFijo.find((o) => o.dias === vencido.dias)?.tasaNominalAnual;
+    elemento("boton-renovar").textContent = tasaDeHoy === undefined
+        ? `Renovar a ${vencido.dias} días`
+        : `Renovar a ${vencido.dias} días al ${formatearTasa(tasaDeHoy)}`;
+    elemento("mensaje-vencimiento").hidden = true;
+
+    if (!dialogo.open) {
+        dialogo.showModal();
+    }
+}
+
+// Cobra o renueva el plazo vencido. Si no queda ninguno más vencido, el juego sigue solo.
+async function resolverVencimiento(renovar) {
+    const dialogo = elemento("dialogo-vencimiento");
+    const plazoFijoId = Number(dialogo.dataset.plazo);
+
+    try {
+        const partida = renovar
+            ? await api.renovarPlazoFijo(idPartida, plazoFijoId)
+            : await api.cobrarPlazoFijo(idPartida, plazoFijoId);
+
+        const quedanVencidos = partida.billetera.plazosFijos.some((plazo) => plazo.vencido);
+        mostrarPartida(quedanVencidos ? partida : await api.reanudar(idPartida));
+        actualizarHistorial(partida.mundo.tick, true);
+    } catch (error) {
+        mostrarAviso(elemento("mensaje-vencimiento"), error.message, true);
+    }
+}
+
+
 // Muestra cuánto costaría la operación antes de hacerla, comisión incluida.
 function actualizarEstimacion() {
     const nombre = elemento("selector-activo").value;
@@ -650,10 +934,19 @@ function actualizarEstimacion() {
 
 // ----- 6. Acciones del jugador -------------------------------------------
 
-// Acepta coma o punto como separador decimal ("0,5" o "0.5").
-function leerCantidad() {
-    const texto = elemento("cantidad").value.trim().replace(",", ".");
+// Lee un número de un campo. Acepta coma o punto decimal ("0,5" o "0.5"), y puntos de miles ("100.000").
+function leerNumero(id) {
+    let texto = elemento(id).value.trim().replaceAll(" ", "");
+    if (texto.includes(",")) {
+        texto = texto.replaceAll(".", "").replace(",", ".");   // "100.000,50" → "100000.50"
+    } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(texto)) {
+        texto = texto.replaceAll(".", "");                      // "100.000" → "100000" (pero "0.500" sigue siendo 0,5)
+    }
     return texto === "" ? NaN : Number(texto);
+}
+
+function leerCantidad() {
+    return leerNumero("cantidad");
 }
 
 // Ejecuta una acción que devuelve la partida y la muestra; si falla, muestra el error.
@@ -785,6 +1078,14 @@ elemento("selector-velocidad").addEventListener("change", (evento) =>
     ejecutar(() => api.cambiarVelocidad(idPartida, Number(evento.target.value))));
 
 elemento("formulario-operacion").addEventListener("submit", operar);
+
+elemento("formulario-plazo-fijo").addEventListener("submit", constituirPlazoFijo);
+elemento("monto-plazo-fijo").addEventListener("input", actualizarEstimacionDePlazoFijo);
+elemento("dias-plazo-fijo").addEventListener("change", actualizarEstimacionDePlazoFijo);
+elemento("boton-renovar").addEventListener("click", () => resolverVencimiento(true));
+elemento("boton-cobrar").addEventListener("click", () => resolverVencimiento(false));
+// La ventana de vencimiento no se cierra con Escape: hay que elegir.
+elemento("dialogo-vencimiento").addEventListener("cancel", (evento) => evento.preventDefault());
 elemento("selector-activo").addEventListener("change", actualizarEstimacion);
 elemento("cantidad").addEventListener("input", actualizarEstimacion);
 elemento("cuerpo-mercado").addEventListener("click", elegirActivoDesdeElMercado);

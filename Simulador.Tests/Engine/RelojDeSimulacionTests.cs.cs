@@ -177,4 +177,57 @@ public class RelojDeSimulacionTests
         reloj.Sincronizar();
         Assert.Equal(3L, reloj.Mundo.TickActual);
     }
+
+    [Fact]
+    public void TickDeParada_PausaJustoEnEseTick()
+    {
+        var reloj = CrearReloj(velocidad: 10);
+        reloj.TickDeParada = 25;
+
+        PasarSegundos(5);   // alcanzaría para 50 ticks
+        reloj.Sincronizar();
+
+        Assert.Equal(25L, reloj.Mundo.TickActual);
+        Assert.True(reloj.EstaPausado);
+    }
+
+    [Fact]
+    public void TickDeParada_MientrasSigaVigente_NoDejaAvanzar()
+    {
+        var reloj = CrearReloj(velocidad: 10);
+        reloj.TickDeParada = 25;
+        PasarSegundos(5);
+        reloj.Sincronizar();
+
+        reloj.Reanudar();
+        PasarSegundos(1);
+        reloj.Sincronizar();
+        Assert.Equal(25L, reloj.Mundo.TickActual);
+
+        reloj.TickDeParada = null;
+        reloj.Reanudar();
+        PasarSegundos(1);
+        reloj.Sincronizar();
+        Assert.Equal(35L, reloj.Mundo.TickActual);
+    }
+
+    [Fact]
+    public void DebeFrenarAnte_ConUnEvento_BajaLaVelocidadYConvierteElTiempoQueQueda()
+    {
+        var empresa = new Empresa("Siempre pasa algo", precioInicial: 100,
+            rendimientoBaseMensual: 0, volatilidadDiaria: 0,
+            sensibilidades: new Dictionary<string, double>(),
+            probabilidadBaseDiaria: 1.0,
+            eventosPosibles: new[] { new DefinicionDeEvento("Evento", Peso: 1, ImpactoMinimo: 1, ImpactoMaximo: 1) });
+        var mundo = new Mundo(Array.Empty<Factor>(), new Activo[] { empresa }, new Random(1));
+        var reloj = new RelojDeSimulacion(mundo, _tiempo, velocidadInicial: 10);
+        reloj.DebeFrenarAnte = _ => true;
+
+        PasarSegundos(2);   // a ×10 serían 20 ticks
+        reloj.Sincronizar();
+
+        // Tick 1: evento, frena. Quedaban 19 ticks a ×10 = 1,9 s = 1,9 ticks a ×1.
+        Assert.Equal(2L, reloj.Mundo.TickActual);
+        Assert.Equal(RelojDeSimulacion.VelocidadAnteEvento, reloj.Velocidad);
+    }
 }

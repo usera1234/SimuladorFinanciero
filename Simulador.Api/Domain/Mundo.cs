@@ -111,6 +111,33 @@ public class Mundo
         }
     }
 
+    // Inflación de los últimos 365 días como proporción (0,268 = 26,8 %).
+    // Si todavía no pasó un año, se anualiza lo que hay. Con menos de 30 días, se usa la inflación de hoy.
+    public double InflacionDelUltimoAnio()
+    {
+        const int DiasDelAnio = 365;
+        const int DiasMinimos = 30;
+
+        var diasDisponibles = (int)Math.Min(TickActual, DiasDelAnio);
+
+        if (diasDisponibles < DiasMinimos)
+        {
+            if (_factorDeInflacion is null)
+            {
+                return 0;
+            }
+
+            var inflacionMensual = _factores.First(factor => factor.Nombre == _factorDeInflacion).ValorActual;
+            return Math.Pow(1 + inflacionMensual / 100.0 / Activo.DiasPorMes, DiasDelAnio) - 1;
+        }
+
+        // El historial tiene un punto por tick, así que la posición i corresponde al día i.
+        var indiceDeHoy = _historial[^1].IndiceDePrecios;
+        var indiceDeAntes = _historial[_historial.Count - 1 - diasDisponibles].IndiceDePrecios;
+
+        return Math.Pow(indiceDeHoy / indiceDeAntes, (double)DiasDelAnio / diasDisponibles) - 1;
+    }
+
     // Guarda los precios y el índice del tick que acaba de terminar.
     private void RegistrarPuntoDelHistorial()
     {

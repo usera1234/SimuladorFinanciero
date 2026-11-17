@@ -87,7 +87,15 @@ public class PartidasController : ControllerBase
             return NotFound();
         }
 
-        partida.Reloj.Reanudar();
+        try
+        {
+            partida.Reanudar();
+        }
+        catch (OperacionInvalidaException error)
+        {
+            return Problem(title: "No se puede reanudar", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+
         return ArmarRespuesta(partida);
     }
 
@@ -139,6 +147,49 @@ public class PartidasController : ControllerBase
         try
         {
             partida.Vender(pedido.Activo, pedido.Cantidad);
+        }
+        catch (OperacionInvalidaException error)
+        {
+            return Problem(title: "Operación inválida", detail: error.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        return ArmarRespuesta(partida);
+    }
+
+    // Pasa efectivo a un plazo fijo. Cuerpo: { "monto": 100000, "dias": 30 }.
+    [HttpPost("{id:guid}/plazos-fijos")]
+    public ActionResult<RespuestaDePartida> ConstituirPlazoFijo(Guid id, PlazoFijoRequest pedido)
+    {
+        return EjecutarOperacion(id, partida => partida.ConstituirPlazoFijo(pedido.Monto, pedido.Dias));
+    }
+
+    // Cobra un plazo fijo vencido: capital más interés pasan al efectivo.
+    [HttpPost("{id:guid}/plazos-fijos/{plazoFijoId:int}/cobrar")]
+    public ActionResult<RespuestaDePartida> CobrarPlazoFijo(Guid id, int plazoFijoId)
+    {
+        return EjecutarOperacion(id, partida => partida.ResolverPlazoFijo(plazoFijoId, renovar: false));
+    }
+
+    // Renueva un plazo fijo vencido al mismo plazo, con capital más interés.
+    [HttpPost("{id:guid}/plazos-fijos/{plazoFijoId:int}/renovar")]
+    public ActionResult<RespuestaDePartida> RenovarPlazoFijo(Guid id, int plazoFijoId)
+    {
+        return EjecutarOperacion(id, partida => partida.ResolverPlazoFijo(plazoFijoId, renovar: true));
+    }
+
+    // Busca la partida, ejecuta la acción y convierte los errores del jugador en un 400.
+    // Los métodos de los plazos fijos lo usan para no repetir el mismo try/catch tres veces.
+    private ActionResult<RespuestaDePartida> EjecutarOperacion(Guid id, Action<Partida> accion)
+    {
+        var partida = _gestor.Obtener(id);
+        if (partida is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            accion(partida);
         }
         catch (OperacionInvalidaException error)
         {

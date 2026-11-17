@@ -86,7 +86,7 @@
                             <tbody id="cuerpo-mercado"></tbody>
                         </table>
                     </div>
-                    <p class="detalle">Tocá el nombre de un activo para elegirlo en el formulario. Todas las líneas de "Evolución" usan la misma escala: una línea casi plana es una inversión estable.</p>
+                    <p class="detalle">Tocá el nombre de un activo para elegirlo en el formulario. Todas las líneas de "Evolución" usan la misma escala: una línea casi plana es una inversión estable. Debajo de cada empresa aparecen sus últimas 3 noticias.</p>
                 </section>
 
                 <div class="lateral">
@@ -127,17 +127,35 @@
                             </table>
                         </div>
                         <p class="detalle" id="billetera-vacia">Todavía no compraste nada: todo tu dinero está en efectivo.</p>
+
+                        <h3 class="subtitulo" id="titulo-plazos-activos" hidden>Plazos fijos</h3>
+                        <ul class="lista" id="lista-plazos-fijos"></ul>
                     </section>
+
+                    <section class="panel" aria-labelledby="titulo-plazo-fijo">
+                        <h2 id="titulo-plazo-fijo">Plazo fijo</h2>
+                        <p class="detalle introduccion">La plata queda inmovilizada hasta que vence: no se puede sacar antes. La tasa se fija el día que lo hacés; si después la inflación sube, perdés contra ella.</p>
+                        <form class="formulario" id="formulario-plazo-fijo" novalidate>
+                            <label>
+                                Monto
+                                <input type="text" inputmode="decimal" id="monto-plazo-fijo" autocomplete="off" placeholder="0">
+                            </label>
+                            <label>
+                                Plazo
+                                <select id="dias-plazo-fijo"></select>
+                            </label>
+                            <p class="detalle" id="referencia-plazo-fijo"></p>
+                            <p class="estimacion" id="estimacion-plazo-fijo"></p>
+                            <button type="submit" class="principal">Constituir plazo fijo</button>
+                            <p class="aviso" id="mensaje-plazo-fijo" role="status" hidden></p>
+                        </form>
+                    </section>
+
+                    
                 </div>
             </div>
 
             <div class="columnas columnas-iguales">
-                <section class="panel" aria-labelledby="titulo-noticias">
-                    <h2 id="titulo-noticias">Noticias de las empresas</h2>
-                    <ul class="lista" id="lista-noticias"></ul>
-                    <p class="detalle" id="noticias-vacias">Todavía no hubo noticias.</p>
-                </section>
-
                 <section class="panel" aria-labelledby="titulo-economia">
                     <h2 id="titulo-economia">Economía</h2>
                     <dl class="factores" id="lista-factores"></dl>
@@ -151,6 +169,21 @@
             </div>
         </div>
     </main>
+
+    <!-- Ventana que aparece cuando vence un plazo fijo. La partida queda en pausa hasta elegir. -->
+    <dialog class="dialogo" id="dialogo-vencimiento" aria-labelledby="titulo-vencimiento">
+        <h2 id="titulo-vencimiento">Venció tu plazo fijo</h2>
+        <p id="texto-vencimiento"></p>
+        <p class="detalle">El juego está en pausa hasta que elijas.</p>
+        <div class="acciones">
+            <button type="button" class="principal" id="boton-renovar">Renovar</button>
+            <button type="button" class="secundario" id="boton-cobrar">Pasar al efectivo</button>
+        </div>
+        <p class="aviso es-error" id="mensaje-vencimiento" hidden></p>
+    </dialog>
+
+    <!-- Notificaciones de eventos: aparecen abajo a la derecha y se van solas. -->
+    <div class="notificaciones" id="notificaciones" role="status" aria-live="polite"></div>
 
     <script src="js/app.js"></script>
 </body>

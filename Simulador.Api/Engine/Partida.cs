@@ -26,6 +26,12 @@ public class Partida
         Semilla = semilla;
         Reloj = reloj;
         Billetera = new Billetera(CapitalInicial);
+
+        // Un evento baja la velocidad solo si es de una empresa de la que el jugador tiene acciones,
+        // y nunca a la velocidad máxima: si el jugador eligió ir lo más rápido posible, se respeta.
+        Reloj.DebeFrenarAnte = evento =>
+            Reloj.Velocidad < RelojDeSimulacion.VelocidadMaxima
+            && Billetera.CantidadDe(evento.Empresa) > 0;
     }
 
     // Compra al precio del instante actual.
@@ -42,6 +48,53 @@ public class Partida
             Billetera.Vender(BuscarActivo(mundo, nombreDelActivo), cantidad, mundo.TickActual));
     }
 
+    // Pasa efectivo a un plazo fijo y avisa al reloj cuándo tiene que pausarse.
+    public PlazoFijo ConstituirPlazoFijo(decimal monto, int dias)
+    {
+        return Reloj.EjecutarSincronizado(mundo =>
+        {
+            var tasa = TasasDePlazoFijo.Calcular(dias, mundo.InflacionDelUltimoAnio());
+            var plazoFijo = Billetera.ConstituirPlazoFijo(monto, dias, tasa, mundo.TickActual);
+            ActualizarParada();
+            return plazoFijo;
+        });
+    }
+
+    // Cobra un plazo fijo vencido. Si "renovar" es true, vuelve a depositar capital más interés al mismo plazo,
+    // con la tasa de hoy (que puede ser distinta de la que tenía).
+    public void ResolverPlazoFijo(int id, bool renovar)
+    {
+        Reloj.EjecutarSincronizado(mundo =>
+        {
+            var cobrado = Billetera.CobrarPlazoFijo(id, mundo.TickActual);
+            if (renovar)
+            {
+                var tasa = TasasDePlazoFijo.Calcular(cobrado.Dias, mundo.InflacionDelUltimoAnio());
+                Billetera.ConstituirPlazoFijo(cobrado.Capital + cobrado.InteresTotal, cobrado.Dias, tasa, mundo.TickActual);
+            }
+
+            ActualizarParada();
+            return cobrado;
+        });
+    }
+
+    // Reanuda el tiempo, salvo que haya un plazo fijo vencido esperando una decisión.
+    public void Reanudar()
+    {
+        Reloj.EjecutarSincronizado(mundo =>
+        {
+            if (Billetera.HayPlazoFijoVencido(mundo.TickActual))
+            {
+                throw new OperacionInvalidaException(
+                    "Tenés un plazo fijo vencido: elegí si lo renovás o pasás la plata al efectivo.");
+            }
+
+            // El candado de C# admite que el mismo hilo lo vuelva a tomar, así que esto no se traba.
+            Reloj.Reanudar();
+            return true;
+        });
+    }
+
     // Devuelve una foto del mundo y de la billetera, tomadas en el mismo instante.
     public EstadoDePartida ObtenerEstado()
     {
@@ -56,12 +109,21 @@ public class Partida
         {
             var puntos = CalculadoraDeHistorial.ElegirPuntos(mundo.Historial, maximoDePuntos);
             var nombres = mundo.Activos.Select(activo => activo.Nombre).ToList();
-            return CalculadoraDeHistorial.Calcular(puntos, nombres, Billetera.CapitalInicial, Billetera.Operaciones);
+            return CalculadoraDeHistorial.Calcular(
+                puntos, nombres, Billetera.CapitalInicial, Billetera.Operaciones, Billetera.PlazosFijos);
         });
+    }
+
+    // El reloj se pausa solo el día del próximo vencimiento. Se llama siempre dentro del candado.
+    private void ActualizarParada()
+    {
+        Reloj.TickDeParada = Billetera.ProximoVencimiento();
     }
 
     private EstadoDeBilletera ArmarEstadoDeBilletera(Mundo mundo)
     {
+        var tick = mundo.TickActual;
+
         var posiciones = mundo.Activos
             .Where(activo => Billetera.CantidadDe(activo.Nombre) > 0)
             .Select(activo =>
@@ -72,7 +134,20 @@ public class Partida
             })
             .ToList();
 
-        var valorTotal = Math.Round(Billetera.CalcularValor(mundo.Activos), 2);
+        var plazosFijos = Billetera.PlazosFijos
+            .Where(p => p.TickDeCobro is null)
+            .Select(p => new EstadoDePlazoFijo(
+                p.Id, p.Capital, p.TasaNominalAnual, p.Dias, p.TickDeInicio, p.TickDeVencimiento,
+                p.InteresAcumulado(tick), p.Capital + p.InteresTotal, p.EstaVencido(tick)))
+            .ToList();
+
+        // Las tasas que se ofrecen hoy, calculadas con la inflación del último año.
+        var inflacionDelUltimoAnio = mundo.InflacionDelUltimoAnio();
+        var opciones = TasasDePlazoFijo.PlazosDisponibles
+            .Select(dias => new OpcionDePlazoFijo(dias, TasasDePlazoFijo.Calcular(dias, inflacionDelUltimoAnio)))
+            .ToList();
+
+        var valorTotal = Math.Round(Billetera.CalcularValor(mundo.Activos) + Billetera.ValorDePlazosFijos(tick), 2);
         var valorReal = Math.Round(valorTotal / (decimal)mundo.IndiceDePrecios, 2);
 
         var ultimasOperaciones = Billetera.Operaciones
@@ -88,7 +163,10 @@ public class Partida
             CalcularGananciaPorcentual(valorTotal),
             valorReal,
             CalcularGananciaPorcentual(valorReal),
-            ultimasOperaciones);
+            ultimasOperaciones,
+            plazosFijos,
+            opciones,
+            Math.Round(inflacionDelUltimoAnio * 100, 2));
     }
 
     private decimal CalcularGananciaPorcentual(decimal valor)

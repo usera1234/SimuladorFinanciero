@@ -24,11 +24,21 @@ public class RelojDeSimulacion
 
     private double _restoDeTick;
 
+    // Velocidad a la que baja el reloj cuando ocurre un evento que le importa al jugador.
+    public const double VelocidadAnteEvento = 1.0;
+
     public Mundo Mundo { get; }
 
     public double Velocidad { get; private set; }
 
     public bool EstaPausado { get; private set; }
+
+    // Si tiene valor, el reloj se pausa solo al llegar a ese tick (por ejemplo, cuando vence un plazo fijo).
+    // Se modifica desde EjecutarSincronizado, dentro del candado.
+    public long? TickDeParada { get; set; }
+
+    // Decide si un evento debe bajar la velocidad. Si es null, ningún evento la baja.
+    public Func<RegistroDeEvento, bool>? DebeFrenarAnte { get; set; }
 
     public RelojDeSimulacion(Mundo mundo, TimeProvider tiempo, double velocidadInicial = 1.0, bool iniciarPausado = false)
     {
@@ -164,28 +174,75 @@ public class RelojDeSimulacion
 
     // La lógica de Sincronizar se movió acá, sin el candado
 
+    // Pone al día el mundo según el tiempo real transcurrido. Solo se llama con el candado tomado.
     private void SincronizarSinBloquear()
-
     {
-
         var ahora = _tiempo.GetUtcNow();
         var segundosTranscurridos = (ahora - _ultimaSincronizacion).TotalSeconds;
         _ultimaSincronizacion = ahora;
 
         if (EstaPausado)
-
         {
-
             return;
-
         }
 
-        var ticksExactos = segundosTranscurridos * Velocidad * TicksPorSegundoBase + _restoDeTick;
-        var ticksEnteros = (long)Math.Floor(ticksExactos);
-        _restoDeTick = ticksExactos - ticksEnteros;
+        // Ticks que corresponden al tiempo transcurrido, más la fracción que sobró la vez anterior.
+        var ticksDisponibles = segundosTranscurridos * Velocidad * TicksPorSegundoBase + _restoDeTick;
 
-        Mundo.AvanzarTicks(ticksEnteros);
+        // Se avanza de a un tick para poder pausar o frenar justo el día en que pasa algo.
+        while (ticksDisponibles >= 1)
+        {
+            if (LlegoALaParada())
+            {
+                EstaPausado = true;
+                _restoDeTick = 0;
+                return;
+            }
 
+            Mundo.AvanzarTicks(1);
+            ticksDisponibles -= 1;
+
+            if (Velocidad > VelocidadAnteEvento && HuboEventoQueFrena())
+            {
+                // El tiempo real que quedaba se sigue contando, pero a la velocidad nueva.
+                ticksDisponibles = ticksDisponibles / Velocidad * VelocidadAnteEvento;
+                Velocidad = VelocidadAnteEvento;
+            }
+        }
+
+        _restoDeTick = ticksDisponibles;
+
+        if (LlegoALaParada())
+        {
+            EstaPausado = true;
+            _restoDeTick = 0;
+        }
+    }
+
+    private bool LlegoALaParada()
+    {
+        return TickDeParada is long parada && Mundo.TickActual >= parada;
+    }
+
+    // Revisa los eventos del tick que acaba de pasar. Están del más viejo al más nuevo,
+    // así que alcanza con mirar el final de la lista.
+    private bool HuboEventoQueFrena()
+    {
+        if (DebeFrenarAnte is null)
+        {
+            return false;
+        }
+
+        var eventos = Mundo.UltimosEventos;
+        for (int i = eventos.Count - 1; i >= 0 && eventos[i].Tick == Mundo.TickActual; i--)
+        {
+            if (DebeFrenarAnte(eventos[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void ValidarVelocidad(double velocidad)

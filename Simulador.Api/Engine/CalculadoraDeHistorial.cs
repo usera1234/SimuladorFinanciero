@@ -41,11 +41,14 @@ public static class CalculadoraDeHistorial
     }
 
     // Repite las operaciones sobre los puntos para saber cuánto valía la billetera cada día.
+    // Los plazos fijos se suman aparte, con el interés ganado hasta cada día. Es opcional para no romper
+    // las pruebas que ya existían.
     public static HistorialDePartida Calcular(
         IReadOnlyList<PuntoDelHistorial> puntos,
         IReadOnlyList<string> nombresDeActivos,
         decimal capitalInicial,
-        IReadOnlyList<Operacion> operaciones)
+        IReadOnlyList<Operacion> operaciones,
+        IReadOnlyList<PlazoFijo>? plazosFijos = null)
     {
         var efectivo = capitalInicial;
         var cantidades = new Dictionary<string, decimal>();
@@ -61,13 +64,26 @@ public static class CalculadoraDeHistorial
             while (siguienteOperacion < operaciones.Count && operaciones[siguienteOperacion].Tick <= punto.Tick)
             {
                 var operacion = operaciones[siguienteOperacion];
-                var esCompra = operacion.Tipo == TipoDeOperacion.Compra;
 
-                cantidades[operacion.Activo] = cantidades.GetValueOrDefault(operacion.Activo)
-                    + (esCompra ? operacion.Cantidad : -operacion.Cantidad);
+                // Total ya incluye la comisión. Compra y plazo fijo sacan efectivo; venta y cobro lo devuelven.
+                switch (operacion.Tipo)
+                {
+                    case TipoDeOperacion.Compra:
+                        cantidades[operacion.Activo] = cantidades.GetValueOrDefault(operacion.Activo) + operacion.Cantidad;
+                        efectivo -= operacion.Total;
+                        break;
+                    case TipoDeOperacion.Venta:
+                        cantidades[operacion.Activo] = cantidades.GetValueOrDefault(operacion.Activo) - operacion.Cantidad;
+                        efectivo += operacion.Total;
+                        break;
+                    case TipoDeOperacion.PlazoFijo:
+                        efectivo -= operacion.Total;
+                        break;
+                    case TipoDeOperacion.CobroDePlazoFijo:
+                        efectivo += operacion.Total;
+                        break;
+                }
 
-                // Total ya incluye la comisión: en la compra salió, en la venta entró.
-                efectivo += esCompra ? -operacion.Total : operacion.Total;
                 siguienteOperacion++;
             }
 
@@ -78,6 +94,11 @@ public static class CalculadoraDeHistorial
                 {
                     valor += cantidad * (decimal)punto.Precios[i];
                 }
+            }
+
+            if (plazosFijos is not null)
+            {
+                valor += plazosFijos.Sum(plazoFijo => plazoFijo.ValorEn(punto.Tick));
             }
 
             ticks.Add(punto.Tick);
